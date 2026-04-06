@@ -16,18 +16,6 @@ python main.py
 
 **Agent sa bude učiť počas behu a model sa bude ukladať automaticky.**
 
-## Online tréning - ako to funguje
-
-| Krok | Čo sa deje |
-|------|-----------|
-| 1-49 | Agent experimentuje a zbiera skúsenosti |
-| 50 | Tréning: `model.learn(1000 timesteps)` |
-| 51-299 | Agent pokračuje v behu |
-| 300 | Model sa uloží do `saved_models/rl_model_TIMESTAMP.zip` |
-| 301-349 | Agent pokračuje v behu |
-| 350 | Tréning: `model.learn(1000 timesteps)` |
-| ... | Opakuje sa |
-
 ### Nastavenia online tréningu
 
 Sú definované v `rl_agent.py`:
