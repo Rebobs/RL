@@ -1,86 +1,98 @@
-# RL Agent pre GNU Radio
+# RL Agent pre GNU Radio - ONLINE TRÉNING
 
 Tento projekt implementuje RL model (DQN) pre dynamické nastavovanie parametrov v GNU Radio/srsRAN systéme.
 
-## Štruktúra projektu
-
-```
-/home/martin/Desktop/RL_Project/
-├── config.json              # Konfigurácia a JSON formát komunikácie
-├── radio_control_server.py  # GNU Radio kontrolný server (ZeroMQ)
-├── rl_agent.py              # RL Agent (komunikuje s GR)
-├── train_agent.py           # Trénovací skript
-├── main.py                  # Hlavný spúšťač
-├── saved_models/            # Uložené modely
-└── README.md
-```
-
-## Inštalácia závislostí
+## Inštalácia
 
 ```bash
 pip install stable-baselines3 gymnasium numpy pyzmq
 ```
 
-## Použitie
+**Agent sa bude učiť počas behu a model sa bude ukladať automaticky.**
 
-### 1. Trénovanie modelu
-
-```bash
-python main.py train
-```
-
-Trénuje DQN model na 50 000 krokov a uloží ho do `saved_models/`.
-
-### 2. Zoznam dostupných modelov
+### Možnosti spustenia
 
 ```bash
-python main.py list
-```
+# Spusti agenta (beží dovtedy, kým nezastavíš)
+python main.py
 
-### 3. Spustenie agenta s existujúcim modelom
+## Online tréning - ako to funguje
 
-```bash
-python main.py run
-```
+| Krok | Čo sa deje |
+|------|-----------|
+| 1-49 | Agent experimentuje a zbiera skúsenosti |
+| 50 | Tréning: `model.learn(1000 timesteps)` |
+| 51-299 | Agent pokračuje v behu |
+| 300 | Model sa uloží do `saved_models/rl_model_TIMESTAMP.zip` |
+| 301-349 | Agent pokračuje v behu |
+| 350 | Tréning: `model.learn(1000 timesteps)` |
+| ... | Opakuje sa |
 
-Alebo s časovým limitom:
+### Nastavenia online tréningu
 
-```bash
-python main.py run --time 300
-```
+Sú definované v `rl_agent.py`:
 
-### 4. Spustenie s konkrétnym modelom
-
-```bash
-python main.py run --model rl_model_20240115_103045.zip
+```python
+ONLINE_TRAINING = {
+    "learn_interval_steps": 50,
+    "learn_timesteps_per_iteration": 1000,
+    "exploration_fraction": 0.3,
+    "exploration_final": 0.05,
+    "save_interval_steps": 300,
+}
 ```
 
 ## Komunikácia medzi RL Agent a GNU Radio
 
-### JSON Formát - Kontrolná správa (RL → GNU Radio)
+### JSON Formát - Kontrolná správa (RL Agent → GNU Radio)
+
+RL Agent odošle túto správu cez ZeroMQ REQ socket na port 5555:
 
 ```json
 {
-  "gain": 0.1,          // float, rozsah [0.0, 10.0]
-  "phase": -0.001,      // float, rozsah [-0.02, 0.02]
-  "eq_mu": 0.0005       // float, rozsah [0.0, 0.01]
+  "gain": 0.1,
+  "phase": -0.001,
+  "eq_mu": 0.0005
 }
 ```
 
-### JSON Formát - Metriky (GNU Radio → RL)
+**Polia:**
+
+| Pole | Typ | Rozsah | Popis |
+|------|-----|--------|-------|
+| gain | float | [0.0, 10.0] | Zmena gainu (multiplier) |
+| phase | float | [-0.02, 0.02] | Fázová korekcia v radiánoch |
+| eq_mu | float | [0.0, 0.01] | Adaptácia equalizera |
+
+### JSON Formát - Metriky (GNU Radio → RL Agent)
+
+GNU Radio posiela metriky cez ZeroMQ PUB socket na port 5556:
 
 ```json
 {
-  "snr": 15.0,          // float, SNR v dB
-  "power": 0.5,         // float, výkon signálu
-  "cfo": 0.0,           // float, carrier frequency offset
-  "throughput": 10.0,   // float, throughput v Mbps
-  "rtt": 50.0,          // float, RTT v ms
-  "loss": 0.01,         // float, packet loss (0-1)
-  "bler": 0.02,         // float, BLER (0-1)
-  "detached": false     // bool, či je UE odpojený
+  "snr": 15.0,
+  "power": 0.5,
+  "cfo": 0.001,
+  "throughput": 10.5,
+  "rtt": 48.2,
+  "loss": 0.008,
+  "bler": 0.015,
+  "detached": false
 }
 ```
+
+**Polia:**
+
+| Pole | Typ | Popis |
+|------|-----|-------|
+| snr | float | SNR v decibeloch |
+| power | float | Výkon signálu |
+| cfo | float | Carrier frequency offset |
+| throughput | float | Throughput v Mbps |
+| rtt | float | Round-trip time v ms |
+| loss | float | Packet loss (0.0 - 1.0) |
+| bler | float | Block Error Rate (0.0 - 1.0) |
+| detached | bool | Stav UE (true = odpojený) |
 
 ### ZeroMQ Sockets
 
@@ -95,82 +107,6 @@ python main.py run --model rl_model_20240115_103045.zip
 reward = 1.5 * throughput - 15 * loss - 0.05 * rtt - 5.0 * bler
 ```
 
-## Bezpečnostné mechanizmy (Watchdog)
-
-Ak nastane ktorákolvek z týchto podmienok, parametre sa resetujú na bezpečné hodnoty:
-
-- UE detach (`detached = true`)
-- Packet loss > 80%
-- RTT > 1000ms
-- Throughput < 0.001 Mbps
-
-Bezpečné hodnoty:
-```json
-{
-  "gain": 1.0,
-  "phase": 0.0,
-  "eq_mu": 0.001
-}
-```
-
 ## Automatické ukladanie modelu
 
-Počas runtime sa model ukladá každých 300 sekúnd (5 minút) do `saved_models/` s timestampom v názve súboru.
-
-## Príklad outputu z konzoly
-
-```
-[INFO] RL Agent pripojený k GNU Radio
-[INFO] Control: tcp://127.0.0.1:5555
-[INFO] Metrics: tcp://127.0.0.1:5556
-[INFO] Model načítaný: rl_model_20240115_103045.zip
-
-[10.5s] Step    1 | Akcia: gain+0.1, phase-0.001          | Odmena: -0.052 | SNR:  14.2dB | Throughput:  9.5Mbps | Loss: 0.02%
-[10.7s] Step    2 | Akcia: gain+0.1, phase-0.001          | Odmena: -0.048 | SNR:  14.8dB | Throughput:  9.8Mbps | Loss: 0.01%
-[10.9s] Step    3 | Akcia: gain-0.1, phase+0.001          | Odmena:  0.125 | SNR:  15.1dB | Throughput: 10.2Mbps | Loss: 0.01%
-
-[INFO] Model uložený: /home/martin/Desktop/RL_Project/saved_models/rl_model_20240115_103500.zip
-```
-
-## Architektúra
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                   RL Agent (Python)                          │
-│  - DQN model                                                 │
-│  - ZeroMQ REQ (kontrola) + SUB (metriky)                     │
-│  - Automatické ukladanie každých 300s                        │
-└──────────────────────┬──────────────────────────────────────┘
-                       │
-              ZeroMQ (127.0.0.1:5555/5556)
-                       │
-┌──────────────────────▼──────────────────────────────────────┐
-│              GNU Radio Control Server                        │
-│  - ZeroMQ REP (kontrola) + PUB (metriky)                    │
-│  - Watchdog bezpečnostné kontroly                            │
-│  - Aplikuje zmeny parametrov                                 │
-└──────────────────────┬──────────────────────────────────────┘
-                       │
-              ZeroMQ (127.0.0.1:5556)
-                       │
-┌──────────────────────▼──────────────────────────────────────┐
-│                   GNU Radio Flowgraph                        │
-│  - Channel Model → Compensation Blocks → srsRAN             │
-│  - ZMQ Source/Sink bloky                                     │
-│  - Metrics probes                                            │
-└─────────────────────────────────────────────────────────────┘
-```
-
-## Dôležité poznámky
-
-1. **localhost vs 127.0.0.1**: Vždy používať IP adresu `127.0.0.1`, nie `localhost`
-2. **Bind vs Connect**: Sink bloky v GR `bind`, Source v RL `connect`
-3. **SUB subscribe**: Always `setsockopt(SUBSCRIBE, b'')` pre prijatie všetkých správ
-4. **Tréning**: Najprv trénuj offline, až potom spúšťaj na reálnom systéme
-5. **Watchdog**: Vždy zapnutý počas runtime pre bezpečnosť
-
-## Kontakt a ďalšie informácie
-
-Tento projekt bol vytvorený pre školský tímový projekt s využitím RL v sieťovej komunikácii.
-Pre viac informácií sa pozri na dokumentáciu GNU Radio ZMQ blokov:
-https://wiki.gnuradio.org/index.php/Understanding_ZMQ_Blocks
+Počas runtime sa model ukladá každých 300 sekúnd do `saved_models/` s timestampom v názve súboru.

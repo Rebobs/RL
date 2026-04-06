@@ -65,42 +65,8 @@ GNU Radio posiela metriky cez ZeroMQ PUB socket na port 5556:
 
 ## 4. Reward formula
 
-Reward sa počíta podľa nasledujúcej vzorca:
+Reward sa počíta podľa nasledujúceho vzorca:
 
 ```
 reward = 1.5 * throughput - 15.0 * loss - 0.05 * rtt - 5.0 * bler
-```
-
-## 5. Bezpečný reset (Watchdog)
-
-Ak nastane kritická situácia, GNU Radio pošle bezpečný reset:
-
-```json
-{
-  "gain": 1.0,
-  "phase": 0.0,
-  "eq_mu": 0.001
-}
-```
-
-## Príklad JSON v Python
-
-```python
-import json
-
-# RL Agent odosiela akciu
-action = {"gain": 0.1, "phase": -0.001, "eq_mu": 0.0005}
-msg = json.dumps(action).encode('utf-8')
-
-# RL Agent prijme metriky
-metrics_json = b'{"snr": 15.0, "power": 0.5, ...}'
-metrics = json.loads(metrics_json.decode('utf-8'))
-
-# Reward výpočet
-reward = (
-    1.5 * metrics["throughput"] -
-    15.0 * metrics["loss"] -
-    0.05 * metrics["rtt"] -
-    5.0 * metrics["bler"]
-)
 ```

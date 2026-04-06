@@ -1,26 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Hlavný spúšťací skript pre RL Agent
-Vyberie si medzi trénovaním a runtime spúšťaním
-"""
 
 import os
 import sys
 import argparse
+import time
 
-# Pridaj Project path
-sys.path.insert(0, '/home/martin/Desktop/RL_Project')
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, BASE_DIR)
 
-from train_agent import train_model
 from rl_agent import RLAgent
 
-# --- Konštanty ---
-PROJECT_DIR = "/home/martin/Desktop/RL_Project"
-MODEL_PATH = os.path.join(PROJECT_DIR, "saved_models")
+MODEL_PATH = os.path.join(BASE_DIR, "saved_models")
 
 def list_models():
-    """Zoznam dostupných modelov"""
     if not os.path.exists(MODEL_PATH):
         print("Žiadne modely v", MODEL_PATH)
         return []
@@ -37,13 +30,14 @@ def list_models():
     return files
 
 def main():
-    parser = argparse.ArgumentParser(description="RL Agent pre GNU Radio")
-    parser.add_argument("mode", choices=["train", "run", "list"], 
-                        help="Trénovať, Spustiť, alebo Zoznam modelov")
+    parser = argparse.ArgumentParser(description="RL Agent pre GNU Radio",
+                                     epilog="Príklady: python main.py | python main.py run | python main.py list")
+    parser.add_argument("mode", nargs="?", default="run", choices=["run", "list"], 
+                        help="Režim: run (spustiť agenta) alebo list (zoznam modelov). Default: run")
     parser.add_argument("--time", type=int, default=None,
-                        help="Čas runu v sekundách (pre 'run' mode)")
+                        help="Čas runu v sekundách (len pre 'run' mode)")
     parser.add_argument("--model", type=str, default=None,
-                        help="Špecifický model na spustenie")
+                        help="Špecifický model na spustenie (len pre 'run' mode)")
     
     args = parser.parse_args()
     
@@ -56,47 +50,42 @@ def main():
         list_models()
         return
         
-    elif args.mode == "train":
-        print("\nZačínam trénovanie...")
-        model, path = train_model()
+    elif args.mode == "run":
+        if not os.path.exists(MODEL_PATH):
+            os.makedirs(MODEL_PATH)
+            print(f"[INFO] Vytvorený priečinok: {MODEL_PATH}")
+        
+        model_files = [f for f in os.listdir(MODEL_PATH) if f.endswith(".zip")]
+        
+        if not model_files:
+            print("\n[INFO] Žiadny existujúci model")
+            print("[INFO] Agent začne s novým modelom a bude sa učiť ONLINE")
+            print("[INFO] Počas behu sa model bude trénovať a ukladať")
+        else:
+            if not args.model:
+                model_file = max(model_files, key=lambda x: os.path.getmtime(os.path.join(MODEL_PATH, x)))
+                print(f"[INFO] Používam najnovší model: {model_file}")
+            else:
+                model_file = args.model
+                print(f"[INFO] Používam model: {model_file}")
+            
+            print("\nDostupné modely:")
+            list_models()
         
         print("\n" + "=" * 60)
-        print("Trénovanie dokončené!")
-        print(f"Model: {path}")
+        print("SPÚŠŤANIE AGENTA S ONLINE TRÉNINGOM")
+        print("=" * 60)
+        print("[INFO] Agent sa bude učiť počas behu")
+        print("[INFO] Model sa bude ukladať každých 300 krokov")
+        print("[INFO] Stlač CTRL+C pre ukončenie")
         print("=" * 60)
         
-        # Ponúknuť spustenie
-        answer = input("\nChceš teraz spustiť agenta? (y/n): ").strip().lower()
-        if answer == "y":
-            agent = RLAgent()
-            if agent.setup():
-                agent.run(duration_seconds=args.time)
-                
-    elif args.mode == "run":
-        # Skontroluj, či existuje model
-        if not os.path.exists(MODEL_PATH):
-            print("\n[ERROR] Žiadne modely v", MODEL_PATH)
-            print("Najprv spusti 'python train_agent.py train'")
-            return
-            
-        files = list_models()
-        if not files:
-            print("\n[ERROR] Žiadne modely v", MODEL_PATH)
-            return
-            
-        # Ak nie je model zadaný, vyber najnovší
-        if not args.model:
-            model_file = max(files, key=lambda x: os.path.getmtime(os.path.join(MODEL_PATH, x)))
-            print(f"[INFO] Používam najnovší model: {model_file}")
-        else:
-            model_file = args.model
-            print(f"[INFO] Používam model: {model_file}")
-            
-        # Spusti agenta
         agent = RLAgent()
         if agent.setup():
             print(f"\n[INFO] Spúšťam agenta na {args.time} sekúnd...")
             agent.run(duration_seconds=args.time)
+        else:
+            print("[ERROR] Nemôžem spustiť agenta")
             
     else:
         print(f"[ERROR] Neznámy mode: {args.mode}")
