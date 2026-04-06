@@ -1,0 +1,88 @@
+{
+    "communication": {
+        "control_port": 5555,
+        "metrics_port": 5556,
+        "control_address": "tcp://127.0.0.1:5555",
+        "metrics_address": "tcp://127.0.0.1:5556"
+    },
+    "control_format": {
+        "name": "control_request",
+        "description": "Pošle sa od RL agenta do GNU Radio pre zmenu parametrov",
+        "fields": {
+            "gain": {
+                "type": "float",
+                "description": "Gain multiplier",
+                "min": 0.0,
+                "max": 10.0,
+                "default": 1.0
+            },
+            "phase": {
+                "type": "float",
+                "description": "Phase correction in radians",
+                "min": -0.02,
+                "max": 0.02,
+                "default": 0.0
+            },
+            "eq_mu": {
+                "type": "float",
+                "description": "Equalizer adaptation step",
+                "min": 0.0,
+                "max": 0.01,
+                "default": 0.001
+            }
+        }
+    },
+    "metrics_format": {
+        "name": "metrics_data",
+        "description": "Pošle sa z GNU Radio do RL agenta",
+        "fields": {
+            "snr": {
+                "type": "float",
+                "description": "SNR v dB"
+            },
+            "power": {
+                "type": "float",
+                "description": "Výkon signálu"
+            },
+            "cfo": {
+                "type": "float",
+                "description": "Carrier frequency offset"
+            },
+            "throughput": {
+                "type": "float",
+                "description": "Throughput v Mbps"
+            },
+            "rtt": {
+                "type": "float",
+                "description": "RTT v ms"
+            },
+            "loss": {
+                "type": "float",
+                "description": "Packet loss v percentách"
+            },
+            "bler": {
+                "type": "float",
+                "description": "BLER (Block Error Rate)"
+            }
+        }
+    },
+    "reward_formula": {
+        "name": "reward_calculation",
+        "description": "Výpočet odmeny",
+        "formula": "reward = 1.5 * throughput - 15 * loss - 0.05 * rtt - 5.0 * bler",
+        "safe_reset": {
+            "gain": 1.0,
+            "phase": 0.0,
+            "eq_mu": 0.001
+        }
+    },
+    "runtime": {
+        "control_period_ms": 200,
+        "save_interval_seconds": 300,
+        "watchdog": {
+            "max_loss": 0.8,
+            "max_rtt": 1000,
+            "min_throughput": 0.001
+        }
+    }
+}
