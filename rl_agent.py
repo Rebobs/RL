@@ -1,369 +1,476 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""
+RL Agent pre GNU Radio — absolútne gain akcie.
 
-import zmq
-import json
-import time
+Namiesto inkrementálnych (+0.1 / -0.1) agent PRIAMO nastaví gain
+na jednu z 9 pevných hodnôt. Žiadny drift, žiadne katastrofálne zážitky.
+"""
+
+import zmq, json, time, random, os, sys, logging, threading
 import numpy as np
 from stable_baselines3 import DQN
-from stable_baselines3.common.env_checker import check_env
-import os
-import sys
-
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, BASE_DIR)
+from stable_baselines3.common.logger import configure as sb3_configure
 from gymnasium import spaces
 import gymnasium as gym
 
+BASE_DIR    = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
-MODEL_PATH = os.path.join(BASE_DIR, "saved_models")
+MODEL_PATH  = os.path.join(BASE_DIR, "saved_models")
+LOG_PATH    = os.path.join(BASE_DIR, "debug.log")
+RL_LOG_PATH = os.path.join(BASE_DIR, "rl_decisions.log")
 
-ONLINE_TRAINING = {
-    "learn_interval_steps": 50,
-    "learn_timesteps_per_iteration": 1000,
-    "exploration_fraction": 0.3,
-    "exploration_final": 0.05,
-    "save_interval_steps": 300,
-}
+# ── logging ──────────────────────────────────────────────────────────────────
+def setup_logging(debug_cfg):
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(message)s",
+        handlers=[
+            logging.FileHandler(LOG_PATH, mode='w', encoding='utf-8'),
+            logging.StreamHandler(sys.stdout),
+        ]
+    )
+    rl = logging.getLogger("rl_decisions")
+    rl.setLevel(logging.DEBUG)
+    rl.propagate = False
+    if debug_cfg.get("rl_decisions_log"):
+        fh = logging.FileHandler(RL_LOG_PATH, mode='w', encoding='utf-8')
+        fh.setFormatter(logging.Formatter("%(asctime)s %(message)s"))
+        rl.addHandler(fh)
+    return rl
 
 def load_config():
-    with open(CONFIG_PATH, 'r') as f:
+    with open(CONFIG_PATH) as f:
         return json.load(f)
 
+# ── monitor ───────────────────────────────────────────────────────────────────
+def build_monitor(monitor_cfg, metrics_address):
+    """
+    Vráti (fig, animate_fn) pre hlavné vlákno, alebo None ak GUI nedostupné.
+    Agent beží v samostatnom vlákne, matplotlib v hlavnom.
+    """
+    try:
+        import collections
+        import matplotlib
+        for backend in ('Qt5Agg', 'Qt6Agg', 'GTK4Agg', 'GTK3Agg', 'WXAgg'):
+            try:
+                matplotlib.use(backend)
+                import matplotlib.pyplot as plt
+                import matplotlib.animation as animation
+                break
+            except Exception:
+                continue
+        else:
+            logging.warning("Monitor: žiadny GUI backend, vypínam")
+            return None, None
+    except ImportError as e:
+        logging.warning(f"Monitor: chýba matplotlib ({e}), vypínam")
+        return None, None
+
+    import collections
+    WINDOW   = monitor_cfg.get("window", 200)
+    INTERVAL = monitor_cfg.get("update_interval_ms", 100)
+
+    bufs = {k: collections.deque([0.0] * WINDOW, maxlen=WINDOW)
+            for k in ("snr", "tput", "loss", "rtt", "reward", "gain")}
+
+    ctx = zmq.Context()
+    sub = ctx.socket(zmq.SUB)
+    sub.connect(metrics_address)
+    sub.setsockopt(zmq.SUBSCRIBE, b'')
+    sub.setsockopt(zmq.RCVTIMEO, 0)   # neblokuje
+
+    def _calc_reward(snr, tput, loss, rtt, bler, gain):
+        sat = max(0.0, gain - 1.8) ** 2 * 8.0
+        low = max(0.0, 0.8 - gain) ** 2 * 20.0
+        return 1.5*tput - 15.0*loss - 0.05*rtt - 5.0*bler - sat - low
+
+    fig, axes = plt.subplots(3, 2, figsize=(13, 8))
+    fig.suptitle("RL Agent — Live Monitor", fontsize=14, fontweight='bold')
+    fig.patch.set_facecolor('#1e1e1e')
+    for ax in axes.flat:
+        ax.set_facecolor('#2d2d2d')
+        ax.tick_params(colors='white')
+        for spine in ax.spines.values():
+            spine.set_edgecolor('#555')
+
+    specs = [
+        ("snr",    axes[0,0], '#00bcd4', 'SNR (dB)',    (0, 25),   20),
+        ("tput",   axes[0,1], '#4caf50', 'Throughput',  (0, 12),   10),
+        ("loss",   axes[1,0], '#f44336', 'Packet Loss', (0, 0.45), None),
+        ("rtt",    axes[1,1], '#ff9800', 'RTT (ms)',    (0, 300),  None),
+        ("reward", axes[2,0], '#e040fb', 'Reward',      (-25, 15), 0),
+        ("gain",   axes[2,1], '#ffeb3b', 'Gain',        (0, 3.5),  1.0),
+    ]
+    lines = {}
+    xs = list(range(WINDOW))
+    for key, ax, color, title, ylim, ref in specs:
+        ax.set_xlim(0, WINDOW); ax.set_ylim(*ylim)
+        ax.set_title(title, color='white', fontsize=10)
+        ax.grid(True, color='#444', linewidth=0.5)
+        lines[key], = ax.plot([], [], color=color, linewidth=1.5)
+        if ref is not None:
+            ax.axhline(ref, color='white', linewidth=0.8, linestyle='--', alpha=0.4)
+
+    status = fig.text(0.01, 0.01, '', color='#aaa', fontsize=9)
+    counter = [0]
+
+    def update(_):
+        msg = None
+        try:
+            while True:
+                raw = sub.recv()
+                try: msg = json.loads(raw.decode())
+                except: pass
+        except zmq.Again:
+            pass
+        if msg is None:
+            return list(lines.values())
+
+        counter[0] += 1
+        snr  = msg.get('snr', 0.0);   tput = msg.get('throughput', 0.0)
+        loss = msg.get('loss', 0.4);   rtt  = msg.get('rtt', 500.0)
+        bler = msg.get('bler', 0.25);  pwr  = msg.get('power', 0.5)
+        gain = float(np.clip(np.sqrt(max(pwr, 1e-6) / 0.5), 0.01, 5.0))
+        rew  = _calc_reward(snr, tput, loss, rtt, bler, gain)
+
+        bufs["snr"].append(snr);    bufs["tput"].append(tput)
+        bufs["loss"].append(loss);  bufs["rtt"].append(rtt)
+        bufs["reward"].append(rew); bufs["gain"].append(gain)
+        for key, line in lines.items():
+            line.set_data(xs, list(bufs[key]))
+        status.set_text(
+            f"#{counter[0]:5d} | SNR={snr:5.1f}dB | tput={tput:4.1f} | "
+            f"loss={loss:.3f} | rtt={rtt:.0f}ms | gain≈{gain:.2f} | R={rew:6.2f}"
+        )
+        return list(lines.values())
+
+    ani = animation.FuncAnimation(fig, update, interval=INTERVAL,
+                                  blit=False, cache_frame_data=False)
+    plt.tight_layout(rect=[0, 0.03, 1, 0.96])
+    logging.info("Monitor pripravený")
+    return fig, ani   # ani musí zostať nažive (garbage collector)
+
+# ── environment ───────────────────────────────────────────────────────────────
 class RadioEnvironment(gym.Env):
-    def __init__(self, config, model_path):
+    """
+    9 absolútnych gain akcií: agent povie 'chcem gain=X'.
+    Agent pošle do GNU Radia delta=(target - current).
+    Žiadny drift, žiadna kumulatívna chyba.
+
+    Gain targets: [0.3, 0.5, 0.7, 0.9, 1.0, 1.2, 1.5, 1.8, 2.0]
+    """
+    GAIN_TARGETS = [0.3, 0.5, 0.7, 0.9, 1.0, 1.2, 1.5, 1.8, 2.0, 2.5, 3.0]
+    ACTION_NAMES = [f"gain={g:.1f}" for g in GAIN_TARGETS]
+
+    def __init__(self, config):
         super().__init__()
         self.config = config
-        self.model_path = model_path
-        
+        # obs: [snr, power, cfo, throughput, rtt, loss, bler]
         self.observation_space = spaces.Box(
-            low=np.array([0.0, 0.0, -0.01, 0.0, 0.0, 0.0, 0.0], dtype=np.float32),
-            high=np.array([30.0, 1.0, 0.01, 100.0, 1000.0, 1.0, 1.0], dtype=np.float32),
-            dtype=np.float32
+            low =np.array([0.0,  0.0, -0.01,  0.0,   0.0, 0.0, 0.0], dtype=np.float32),
+            high=np.array([30.0, 10.0,  0.01, 100.0, 1000.0, 1.0, 1.0], dtype=np.float32),
         )
-        
-        self.action_space = spaces.Discrete(6)
-        self.action_names = [
-            "gain+0.1, phase+0.001",
-            "gain+0.1, phase-0.001",
-            "gain-0.1, phase+0.001",
-            "gain-0.1, phase-0.001",
-            "gain+0.05, eq_mu+0.0005",
-            "gain-0.05, eq_mu-0.0005"
-        ]
-        
-        self.ctrl_sock = None
-        self.metrics_sock = None
-        self.running = False
-        self.model = None
-        self.step_count = 0
-        self.learn_counter = 0
-        self.connected = False
-        
-    def init_sockets(self):
-        ctx = zmq.Context()
-        
-        try:
-            self.ctrl_sock = ctx.socket(zmq.REQ)
-            self.ctrl_sock.connect(self.config["communication"]["control_address"])
-            self.ctrl_sock.setsockopt(zmq.RCVTIMEO, 5000)
-            
-            self.metrics_sock = ctx.socket(zmq.SUB)
-            self.metrics_sock.connect(self.config["communication"]["metrics_address"])
-            self.metrics_sock.setsockopt(zmq.SUBSCRIBE, b'')
-            self.metrics_sock.setsockopt(zmq.RCVTIMEO, 2000)
-            
-            self.connected = True
-            print("[INFO] RL Agent pripojený k GNU Radio")
-            print(f"[INFO] Control: {self.config['communication']['control_address']}")
-            print(f"[INFO] Metrics: {self.config['communication']['metrics_address']}")
-        except Exception as e:
-            self.connected = False
-            print(f"[WARNING] Nemôžem sa pripojiť k GNU Radio: {e}")
-            print("[WARNING] Budem používať simulované metriky")
-            self.ctrl_sock = None
-            self.metrics_sock = None
-        
-    def get_state(self):
-        if not self.connected:
-            print("[WARNING] Používam simulované metriky")
-            return np.array([
-                15.0 + np.random.uniform(-3, 3),
-                0.5 + np.random.uniform(-0.1, 0.1),
-                0.0 + np.random.uniform(-0.01, 0.01),
-                10.0 + np.random.uniform(-2, 2),
-                50.0 + np.random.uniform(-15, 15),
-                0.01 + np.random.uniform(-0.005, 0.02),
-                0.02 + np.random.uniform(-0.01, 0.01)
-            ], dtype=np.float32)
-        
-        try:
-            if self.metrics_sock.poll(1000) > 0:
-                msg = self.metrics_sock.recv_json()
-                state = np.array([
-                    msg.get("snr", 15.0),
-                    msg.get("power", 0.5),
-                    msg.get("cfo", 0.0),
-                    msg.get("throughput", 10.0),
-                    msg.get("rtt", 50.0),
-                    msg.get("loss", 0.01),
-                    msg.get("bler", 0.02)
-                ], dtype=np.float32)
-                return state
-            else:
-                print("[WARNING] Žiadne metriky, použijem predvolené")
-                return np.array([15.0, 0.5, 0.0, 10.0, 50.0, 0.01, 0.02], dtype=np.float32)
-        except zmq.Again:
-            print("[WARNING] Timeout pri čítaní metrík")
-            return np.array([15.0, 0.5, 0.0, 10.0, 50.0, 0.01, 0.02], dtype=np.float32)
-        except Exception as e:
-            print(f"[ERROR] Chyba pri čítaní metrík: {e}")
-            return np.array([15.0, 0.5, 0.0, 10.0, 50.0, 0.01, 0.02], dtype=np.float32)
-            
-    def send_action(self, action_idx):
-        if not self.connected:
-            print(f"[INFO] Simulovaná akcia {action_idx}: {self.action_names[action_idx]}")
-            return True
-        
-        try:
-            gains = [0.1, 0.1, -0.1, -0.1, 0.05, -0.05]
-            phases = [0.001, -0.001, 0.001, -0.001, 0.0, 0.0]
-            eq_mus = [0.0, 0.0, 0.0, 0.0, 0.0005, -0.0005]
-            
-            action = {
-                "gain": gains[action_idx],
-                "phase": phases[action_idx],
-                "eq_mu": eq_mus[action_idx]
-            }
-            
-            self.ctrl_sock.send_json(action)
-            response = self.ctrl_sock.recv_json()
-            
-            if response.get("ok", False):
-                print(f"[INFO] Akcia {action_idx} odoslaná: {self.action_names[action_idx]}")
-                return True
-            else:
-                print(f"[ERROR] Akcia {action_idx} bola odmietnutá")
-                return False
-                
-        except zmq.Again:
-            print("[ERROR] Timeout pri odoberaní odpovede od GNU Radio")
-            return False
-        except Exception as e:
-            print(f"[ERROR] Chyba pri posielaní akcie: {e}")
-            return False
-            
-    def calculate_reward(self, state):
-        throughput = state[3]
-        loss = state[5]
-        rtt = state[4]
-        bler = state[6]
-        
-        reward = (
-            1.5 * throughput -
-            15.0 * loss -
-            0.05 * rtt -
-            5.0 * bler
-        )
-        
-        return reward
-        
-    def step(self, action_idx):
-        success = self.send_action(action_idx)
-        
-        if not success:
-            return None, -10.0, True, False, {}
-        
-        time.sleep(0.2)
-        
-        next_state = self.get_state()
-        reward = self.calculate_reward(next_state)
-        done = next_state[5] > 0.8 or next_state[3] < 0.001
-        
-        self.step_count += 1
-        
-        return next_state, reward, done, False, {}
-        
-    def reset(self, seed=None, options=None):
-        print("[INFO] Reset environmentu...")
-        
-        if self.connected:
-            try:
-                safe_action = {"gain": 1.0, "phase": 0.0, "eq_mu": 0.001}
-                self.ctrl_sock.send_json(safe_action)
-                self.ctrl_sock.recv_json()
-            except Exception as e:
-                print(f"[WARNING] Chyba pri resete: {e}")
-        else:
-            print("[INFO] Simulovaný reset (GNU Radio nie je pripojený)")
-        
-        time.sleep(1.0)
-        
-        obs = self.get_state()
-        
-        return obs, {}
-        
-    def close(self):
-        if self.ctrl_sock:
-            self.ctrl_sock.close()
-        if self.metrics_sock:
-            self.metrics_sock.close()
-        print("[INFO] RL Agent sockety uzatvorené")
-        
-    def load_or_create_model(self):
-        model_files = [f for f in os.listdir(self.model_path) if f.endswith(".zip")]
-        
-        if not model_files:
-            print("[INFO] Žiadny existujúci model, vytváram nový pre online tréning")
-            self.model = DQN(
-                "MlpPolicy",
-                self,
-                verbose=0,
-                learning_rate=1e-3,
-                buffer_size=10000,
-                learning_starts=100,
-                batch_size=32,
-                exploration_fraction=ONLINE_TRAINING["exploration_fraction"],
-                exploration_final_eps=ONLINE_TRAINING["exploration_final"],
-            )
-            return True
-            
-        model_file = max(model_files, key=lambda x: os.path.getmtime(os.path.join(self.model_path, x)))
-        model_path_full = os.path.join(self.model_path, model_file)
-        
-        try:
-            self.model = DQN.load(model_path_full)
-            print(f"[INFO] Model načítaný: {model_file}")
-            return True
-        except Exception as e:
-            print(f"[ERROR] Chyba pri načítaní modelu, vytváram nový: {e}")
-            self.model = DQN(
-                "MlpPolicy",
-                self,
-                verbose=0,
-                learning_rate=1e-3,
-                buffer_size=10000,
-                learning_starts=100,
-                batch_size=32,
-                exploration_fraction=ONLINE_TRAINING["exploration_fraction"],
-                exploration_final_eps=ONLINE_TRAINING["exploration_final"],
-            )
-            return False
-            
-    def save_model(self, model):
-        if not os.path.exists(self.model_path):
-            os.makedirs(self.model_path)
-            
-        timestamp = time.strftime("%Y%m%d_%H%M%S")
-        save_path = os.path.join(self.model_path, f"rl_model_{timestamp}.zip")
-        
-        try:
-            model.save(save_path)
-            print(f"[INFO] Model uložený: {save_path}")
-        except Exception as e:
-            print(f"[ERROR] Chyba pri ukladaní modelu: {e}")
-            
-    def online_train(self):
-        try:
-            self.model.learn(total_timesteps=ONLINE_TRAINING["learn_timesteps_per_iteration"])
-            print(f"[INFO] Online tréning: {ONLINE_TRAINING['learn_timesteps_per_iteration']} timesteps")
-        except Exception as e:
-            print(f"[ERROR] Chyba pri online tréningu: {e}")
+        self.action_space = spaces.Discrete(len(self.GAIN_TARGETS))
 
+        self._gain  = 3.0   # GNU Radio štartuje s gain=3.0 — musí sedieť
+        self._phase = 0.0
+
+        self.ctrl_sock    = None
+        self.metrics_sock = None
+        self._zmq_ctx     = None
+        self.connected    = False
+
+    # ── ZMQ ──
+    def init_sockets(self):
+        self._zmq_ctx = zmq.Context()
+
+        self.ctrl_sock = self._zmq_ctx.socket(zmq.REQ)
+        self.ctrl_sock.setsockopt(zmq.SNDTIMEO, 1000)
+        self.ctrl_sock.setsockopt(zmq.RCVTIMEO, 1000)
+        self.ctrl_sock.connect(self.config["communication"]["control_address"])
+
+        self.metrics_sock = self._zmq_ctx.socket(zmq.SUB)
+        self.metrics_sock.connect(self.config["communication"]["metrics_address"])
+        self.metrics_sock.setsockopt(zmq.SUBSCRIBE, b'')
+        self.metrics_sock.setsockopt(zmq.RCVTIMEO, 2000)
+
+        time.sleep(0.5)
+        self.connected = True
+        logging.info(f"ZMQ OK — ctrl={self.config['communication']['control_address']}")
+
+    def _reconnect_ctrl(self):
+        try: self.ctrl_sock.close()
+        except: pass
+        self.ctrl_sock = self._zmq_ctx.socket(zmq.REQ)
+        self.ctrl_sock.setsockopt(zmq.SNDTIMEO, 1000)
+        self.ctrl_sock.setsockopt(zmq.RCVTIMEO, 1000)
+        self.ctrl_sock.connect(self.config["communication"]["control_address"])
+
+    # ── metriky ──
+    def get_state(self):
+        default = np.array([15.0, 0.5, 0.0, 10.0, 50.0, 0.01, 0.02], dtype=np.float32)
+        if not self.connected:
+            return default
+        try:
+            if self.metrics_sock.poll(300) == 0:
+                logging.warning("Metriky: timeout, predvolené")
+                return default
+            raw = self.metrics_sock.recv()
+            # vyčerpaj frontu — chceme najnovšiu správu
+            while self.metrics_sock.poll(0) > 0:
+                raw = self.metrics_sock.recv()
+            msg = json.loads(raw.decode('utf-8'))
+            return np.array([
+                msg.get("snr",        15.0),
+                msg.get("power",       0.5),
+                msg.get("cfo",         0.0),
+                msg.get("throughput", 10.0),
+                msg.get("rtt",        50.0),
+                msg.get("loss",       0.01),
+                msg.get("bler",       0.02),
+            ], dtype=np.float32)
+        except zmq.Again:
+            logging.warning("Metriky recv timeout")
+            return default
+        except Exception as e:
+            logging.error(f"Metriky chyba: {e}")
+            return default
+
+    # ── akcia ──
+    def send_action(self, action_idx):
+        target = self.GAIN_TARGETS[action_idx]
+        delta  = round(target - self._gain, 6)   # koľko treba pridať/ubrať
+
+        if not self.connected:
+            self._gain = target
+            return True
+
+        if abs(delta) < 1e-5:   # gain je už na cieľovej hodnote, nič neposielaj
+            return True
+
+        payload = json.dumps({"gain": delta, "phase": 0.0, "eq_mu": 0.0}).encode()
+        try:
+            self.ctrl_sock.send(payload)
+            self.ctrl_sock.recv()
+            self._gain = target   # aktualizuj až po potvrdení
+            return True
+        except Exception as e:
+            logging.error(f"send_action zlyhalo: {e}")
+            self._reconnect_ctrl()
+            return False
+
+    # ── reward ──
+    def calculate_reward(self, state):
+        tput = float(state[3])
+        loss = float(state[5])
+        rtt  = float(state[4])
+        bler = float(state[6])
+        # Základný reward z metrík
+        r = 1.5 * tput - 15.0 * loss - 0.05 * rtt - 5.0 * bler
+        # Jemná penalizácia za odchylku od optimálneho gain (1.0)
+        # — slabá, len ako doplnok, nie dominantná
+        r -= abs(self._gain - 1.0) * 0.5
+        return float(r)
+
+    # ── gym ──
+    def step(self, action_idx):
+        ok = self.send_action(action_idx)
+        if not ok:
+            return self.get_state(), -5.0, False, False, {"send_failed": True}
+        time.sleep(0.15)
+        state  = self.get_state()
+        reward = self.calculate_reward(state)
+        return state, reward, False, False, {}
+
+    def reset(self, seed=None, options=None):
+        # Nezasahujeme do gainu — štartujeme v zlom stave (gain=3.0)
+        # aby agent videl reálne zlepšenie
+        time.sleep(0.3)
+        return self.get_state(), {}
+
+    def close(self):
+        if self.ctrl_sock:    self.ctrl_sock.close()
+        if self.metrics_sock: self.metrics_sock.close()
+        if self._zmq_ctx:     self._zmq_ctx.term()
+
+
+# ── agent ─────────────────────────────────────────────────────────────────────
 class RLAgent:
+    EPS_START = 0.9
+    EPS_END   = 0.01    # takmer žiadna explorácia po konvergencii
+    EPS_DECAY = 0.995   # rýchlejší decay
+
     def __init__(self):
-        config = load_config()
-        self.config = config
-        self.env = RadioEnvironment(config, MODEL_PATH)
-        self.model = None
-        
+        self.cfg    = load_config()
+        self.debug  = self.cfg.get("debug", {})
+        self.tcfg   = self.cfg.get("training", {})
+        self.rl_log = setup_logging(self.debug)
+        self.env    = RadioEnvironment(self.cfg)
+        self.model  = None
+
+    def _create_model(self):
+        return DQN(
+            "MlpPolicy", self.env, verbose=0,
+            learning_rate          = self.tcfg.get("learning_rate", 3e-4),
+            buffer_size            = self.tcfg.get("buffer_size",   10000),
+            learning_starts        = self.tcfg.get("learning_starts", 100),
+            batch_size             = self.tcfg.get("batch_size", 64),
+            max_grad_norm          = 10.0,
+            target_update_interval = 100,
+            gamma                  = 0.95,
+            exploration_fraction   = 0.3,
+            exploration_final_eps  = self.EPS_END,
+        )
+
     def setup(self):
         self.env.init_sockets()
-        
-        if not self.env.load_or_create_model():
-            print("[ERROR] Nemôžem spustiť agenta bez modelu")
-            return False
-        
-        self.model = self.env.model
-        
-        print("[INFO] Kontrola environmentu...")
-        # check_env(self.env, warn=True)
-        
-        print("[INFO] RL Agent pripravený")
-        if self.env.connected:
-            print("[INFO] Pripojený k GNU Radio cez ZMQ")
+        os.makedirs(MODEL_PATH, exist_ok=True)
+
+        zips = sorted(
+            [f for f in os.listdir(MODEL_PATH) if f.endswith(".zip")],
+            key=lambda x: os.path.getmtime(os.path.join(MODEL_PATH, x))
+        )
+        if zips:
+            path = os.path.join(MODEL_PATH, zips[-1])
+            try:
+                self.model = DQN.load(path)
+                self.model.set_env(self.env)
+                self.model.set_logger(sb3_configure(None, []))
+                self.model.exploration_rate = 0.3
+                logging.info(f"Model načítaný: {zips[-1]}")
+            except Exception as e:
+                logging.warning(f"Načítanie modelu zlyhalo ({e}), vytváram nový")
+                self.model = self._create_model()
+                self.model.set_logger(sb3_configure(None, []))
         else:
-            print("[WARNING] Nie je pripojený k GNU Radio (simulácia)")
-        print("[INFO] Stlač CTRL+C pre ukončenie")
-        
-        return True
-        
-    def run(self, duration_seconds=None):
-        self.env.running = True
-        
-        start_time = time.time()
-        step_count = 0
-        train_counter = 0
-        save_counter = 0
-        
+            self.model = self._create_model()
+            self.model.set_logger(sb3_configure(None, []))
+            logging.info("Nový model vytvorený")
+
+    def _push(self, obs, next_obs, action, reward):
+        self.model.replay_buffer.add(
+            np.array(obs).reshape(1, -1),
+            np.array(next_obs).reshape(1, -1),
+            np.array([[action]]),
+            np.array([[reward]]),
+            np.array([[0.0]]),   # done = False vždy
+            [{}]
+        )
+        self.model.num_timesteps += 1
+
+    def _train(self):
+        if self.model.replay_buffer.size() >= self.model.learning_starts:
+            self.model.train(gradient_steps=1, batch_size=self.model.batch_size)
+            try:
+                return float(self.model.logger.name_to_value.get("train/loss", float("nan")))
+            except:
+                return float("nan")
+        return float("nan")
+
+    def _save(self, step):
+        ts   = time.strftime("%Y%m%d_%H%M%S")
+        path = os.path.join(MODEL_PATH, f"rl_model_{ts}_step{step}.zip")
+        self.model.save(path)
+        logging.info(f"Model uložený: {os.path.basename(path)}")
+
+    def run(self):
+        LOG_EVERY   = self.tcfg.get("log_interval_steps", 20)
+        SAVE_EVERY  = self.tcfg.get("save_interval_steps", 500)
+        TRAIN_EVERY = 2   # train každé 2 kroky (absolútne akcie sú pomalšie na učenie)
+
+        epsilon    = self.EPS_START
+        step       = 0
+        t0         = time.time()
+
+        buf_r, buf_snr, buf_tput, buf_loss, buf_gl = [], [], [], [], []
+        act_counts = [0] * self.env.action_space.n
+        recent_rewards = []   # posledných 50 pre adaptívny epsilon
+
+        obs, _ = self.env.reset()
+        logging.info("=== Štart tréningu — absolútne gain akcie ===")
+        logging.info(f"Gain targets: {self.env.GAIN_TARGETS}")
+        logging.info(f"Akcie: {self.env.ACTION_NAMES}")
+
         try:
-            obs, _ = self.env.reset()
-            
-            while self.env.running:
-                if duration_seconds and (time.time() - start_time) > duration_seconds:
-                    print("\n[INFO] Dĺžka runu dosiahnutá")
-                    break
-                    
-                action, _ = self.model.predict(obs, deterministic=False)
-                action_idx = int(action)
-                
-                next_state, reward, done, truncated, info = self.env.step(action_idx)
-                step_count += 1
-                
-                if next_state is None:
-                    print("[ERROR] Akcia zlyhala, resetujem environment")
-                    obs, _ = self.env.reset()
-                    continue
-                    
-                print(f"[{time.time() - start_time:.1f}s] "
-                      f"Step {step_count:4d} | "
-                      f"Akcia: {self.env.action_names[action_idx]:30s} | "
-                      f"Odmena: {reward:8.3f} | "
-                      f"SNR: {next_state[0]:5.1f}dB | "
-                      f"Throughput: {next_state[3]:6.1f}Mbps | "
-                      f"Loss: {next_state[5]:5.2%}")
-                
-                if done or truncated:
-                    print("\n[INFO] Environment ukončený (detached alebo low throughput)")
-                    obs, _ = self.env.reset()
-                    continue
-                    
-                obs = next_state
-                
-                train_counter += 1
-                if train_counter >= ONLINE_TRAINING["learn_interval_steps"]:
-                    self.env.online_train()
-                    train_counter = 0
-                
-                save_counter += 1
-                if save_counter >= ONLINE_TRAINING["save_interval_steps"]:
-                    self.env.save_model(self.model)
-                    save_counter = 0
-                    
+            while True:
+                # Adaptívny epsilon: ak je reward stabilne vysoký, prestaň explorovať
+                if len(recent_rewards) >= 50:
+                    avg_r = np.mean(recent_rewards[-50:])
+                    if avg_r > 8.0:       # blízko optima (max ~11)
+                        epsilon = self.EPS_END
+                    elif avg_r > 5.0:
+                        epsilon = max(self.EPS_END, epsilon * 0.99)
+                    else:
+                        epsilon = max(self.EPS_END, epsilon * self.EPS_DECAY)
+                else:
+                    epsilon = max(self.EPS_END, epsilon * self.EPS_DECAY)
+
+                # ε-greedy výber
+                if random.random() < epsilon:
+                    action = self.env.action_space.sample()
+                    src = "rand"
+                else:
+                    action = int(self.model.predict(obs, deterministic=True)[0])
+                    src = "model"
+
+                next_obs, reward, _, _, info = self.env.step(action)
+                step += 1
+
+                self._push(obs, next_obs, action, reward)
+                if step % TRAIN_EVERY == 0:
+                    gl = self._train()
+                    if not np.isnan(gl):
+                        buf_gl.append(gl)
+
+                # RL decisions log — každý krok
+                if self.debug.get("rl_decisions_log"):
+                    self.rl_log.debug(
+                        f"k={step:5d} {src:5s} | akcia={self.env.ACTION_NAMES[action]:10s} | "
+                        f"gain={self.env._gain:.2f} | "
+                        f"SNR={next_obs[0]:5.1f}dB tput={next_obs[3]:5.1f} "
+                        f"loss={next_obs[5]:.3f} rtt={next_obs[4]:.0f}ms | "
+                        f"R={reward:7.2f} | eps={epsilon:.3f}"
+                    )
+
+                buf_r.append(reward); buf_snr.append(next_obs[0])
+                buf_tput.append(next_obs[3]); buf_loss.append(next_obs[5])
+                act_counts[action] += 1
+                recent_rewards.append(reward)
+                if len(recent_rewards) > 100:
+                    recent_rewards.pop(0)
+
+                if step % LOG_EVERY == 0:
+                    gl_s    = f"{np.mean(buf_gl):.3f}" if buf_gl else "N/A"
+                    dom     = int(np.argmax(act_counts))
+                    logging.info(
+                        f"[{step:5d}] t={time.time()-t0:.0f}s | "
+                        f"reward={np.mean(buf_r):6.2f} | "
+                        f"SNR={np.mean(buf_snr):5.1f}dB | tput={np.mean(buf_tput):4.1f} | "
+                        f"loss={np.mean(buf_loss):.3f} | "
+                        f"gain={self.env._gain:.2f} | "
+                        f"eps={epsilon:.3f} buf={self.model.replay_buffer.size()} | "
+                        f"grad_loss={gl_s} | "
+                        f"dom={self.env.ACTION_NAMES[dom]} | counts={act_counts}"
+                    )
+                    buf_r.clear(); buf_snr.clear(); buf_tput.clear()
+                    buf_loss.clear(); buf_gl.clear()
+                    act_counts = [0] * self.env.action_space.n
+
+                if step % SAVE_EVERY == 0:
+                    self._save(step)
+
+                obs = next_obs
+
         except KeyboardInterrupt:
-            print("\n[INFO] Ukonečovanie agenta...")
-            self.env.running = False
-            
+            logging.info("Ukončovanie...")
         finally:
-            print("[INFO] Finalné uloženie modelu...")
-            self.env.save_model(self.model)
+            self._save(step)
             self.env.close()
-            print("[INFO] RL Agent ukončený")
+            logging.info(f"Hotovo — {step} krokov, {time.time()-t0:.0f}s")
+
 
 if __name__ == "__main__":
     agent = RLAgent()
-    
-    if agent.setup():
-        agent.run(duration_seconds=None)
-    else:
-        print("[ERROR] Nemôžem spustiť agenta")
+    agent.setup()
+    agent.run()

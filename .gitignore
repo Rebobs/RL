@@ -1,3 +1,10 @@
-__pycache__/rl_agent.cpython-314.pyc
-saved_models/rl_model_20260406_214541.zip
-saved_models/rl_model_20260406_214922.zip
+venv/
+__pycache__/
+*.pyc
+*.pyo
+
+saved_models/
+debug.log
+rl_decisions.log
+
+options_0_epy_block_0.py

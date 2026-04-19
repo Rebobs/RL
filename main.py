@@ -3,93 +3,81 @@
 
 import os
 import sys
-import argparse
 import time
+import threading
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, BASE_DIR)
 
-from rl_agent import RLAgent
+from rl_agent import RLAgent, build_monitor, load_config
 
 MODEL_PATH = os.path.join(BASE_DIR, "saved_models")
 
 def list_models():
     if not os.path.exists(MODEL_PATH):
         print("Žiadne modely v", MODEL_PATH)
-        return []
-        
-    files = [f for f in os.listdir(MODEL_PATH) if f.endswith(".zip")]
-    files.sort(key=lambda x: os.path.getmtime(os.path.join(MODEL_PATH, x)))
-    
+        return
+    files = sorted(
+        [f for f in os.listdir(MODEL_PATH) if f.endswith(".zip")],
+        key=lambda x: os.path.getmtime(os.path.join(MODEL_PATH, x))
+    )
+    if not files:
+        print("  (žiadne uložené modely)")
+        return
     for f in files:
-        filepath = os.path.join(MODEL_PATH, f)
-        size = os.path.getsize(filepath)
-        mtime = os.path.getmtime(filepath)
-        print(f"  {f} ({size/1024:.1f} KB) - {time.ctime(mtime)}")
-        
-    return files
+        fp   = os.path.join(MODEL_PATH, f)
+        size = os.path.getsize(fp) / 1024
+        mt   = time.ctime(os.path.getmtime(fp))
+        print(f"  {f}  ({size:.1f} KB)  {mt}")
 
 def main():
-    parser = argparse.ArgumentParser(description="RL Agent pre GNU Radio",
-                                     epilog="Príklady: python main.py | python main.py run | python main.py list")
-    parser.add_argument("mode", nargs="?", default="run", choices=["run", "list"], 
-                        help="Režim: run (spustiť agenta) alebo list (zoznam modelov). Default: run")
-    parser.add_argument("--time", type=int, default=None,
-                        help="Čas runu v sekundách (len pre 'run' mode)")
-    parser.add_argument("--model", type=str, default=None,
-                        help="Špecifický model na spustenie (len pre 'run' mode)")
-    
+    import argparse
+    parser = argparse.ArgumentParser(description="RL Agent pre GNU Radio")
+    parser.add_argument("mode", nargs="?", default="run",
+                        choices=["run", "list"],
+                        help="run = spusti agenta, list = zoznam modelov")
     args = parser.parse_args()
-    
+
     print("=" * 60)
-    print("RL AGENT PRE GNU RADIO - Hlavný spúšťač")
+    print("RL AGENT PRE GNU RADIO")
     print("=" * 60)
-    
+
     if args.mode == "list":
-        print("\nDostupné modely:")
         list_models()
         return
-        
-    elif args.mode == "run":
-        if not os.path.exists(MODEL_PATH):
-            os.makedirs(MODEL_PATH)
-            print(f"[INFO] Vytvorený priečinok: {MODEL_PATH}")
-        
-        model_files = [f for f in os.listdir(MODEL_PATH) if f.endswith(".zip")]
-        
-        if not model_files:
-            print("\n[INFO] Žiadny existujúci model")
-            print("[INFO] Agent začne s novým modelom a bude sa učiť ONLINE")
-            print("[INFO] Počas behu sa model bude trénovať a ukladať")
-        else:
-            if not args.model:
-                model_file = max(model_files, key=lambda x: os.path.getmtime(os.path.join(MODEL_PATH, x)))
-                print(f"[INFO] Používam najnovší model: {model_file}")
-            else:
-                model_file = args.model
-                print(f"[INFO] Používam model: {model_file}")
-            
-            print("\nDostupné modely:")
-            list_models()
-        
-        print("\n" + "=" * 60)
-        print("SPÚŠŤANIE AGENTA S ONLINE TRÉNINGOM")
-        print("=" * 60)
-        print("[INFO] Agent sa bude učiť počas behu")
-        print("[INFO] Model sa bude ukladať každých 300 krokov")
-        print("[INFO] Stlač CTRL+C pre ukončenie")
-        print("=" * 60)
-        
-        agent = RLAgent()
-        if agent.setup():
-            print(f"\n[INFO] Spúšťam agenta na {args.time} sekúnd...")
-            agent.run(duration_seconds=args.time)
-        else:
-            print("[ERROR] Nemôžem spustiť agenta")
-            
+
+    print("Logy:  debug.log       — súhrnné štatistiky každých 20 krokov")
+    print("       rl_decisions.log — každé rozhodnutie agenta (ak debug=true)")
+    print("Ukonči: CTRL+C")
+    print("=" * 60)
+
+    agent = RLAgent()
+    agent.setup()
+
+    cfg     = load_config()
+    mon_cfg = cfg.get("monitor", {})
+    fig, ani = None, None
+
+    if mon_cfg.get("enabled", False):
+        fig, ani = build_monitor(mon_cfg, cfg["communication"]["metrics_address"])
+
+    # Agent beží v daemon vlákne; plt.show() blokuje hlavné vlákno
+    t = threading.Thread(target=agent.run, daemon=True)
+    t.start()
+
+    if fig is not None:
+        import matplotlib.pyplot as plt
+        try:
+            plt.show()
+        except KeyboardInterrupt:
+            pass
     else:
-        print(f"[ERROR] Neznámy mode: {args.mode}")
-        return
+        # žiadny monitor — čakáme na agent vlákno
+        try:
+            while t.is_alive():
+                t.join(timeout=1.0)
+        except KeyboardInterrupt:
+            pass
 
 if __name__ == "__main__":
     main()
