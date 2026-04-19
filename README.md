@@ -2,24 +2,6 @@
 
 DQN agent ktorý sa pripojí na GNU Radio cez ZeroMQ, číta metriky signálu (SNR, throughput, loss, RTT, BLER) a automaticky nastavuje gain pre optimálny príjem.
 
-## Požiadavky
-
-- Python 3.14
-- GNU Radio 3.10+ (systémová inštalácia, nie cez pip)
-- GPU nie je nutná (ale ak je, PyTorch ju automaticky využije)
-
-### Inštalácia GNU Radio (Arch Linux)
-
-```bash
-sudo pacman -S gnuradio
-```
-
-### Inštalácia GNU Radio (Ubuntu/Debian)
-
-```bash
-sudo apt install gnuradio
-```
-
 ## Inštalácia
 
 ```bash
