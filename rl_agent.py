@@ -131,7 +131,7 @@ def build_monitor(monitor_cfg, metrics_address):
         snr  = msg.get('snr', 0.0);   tput = msg.get('throughput', 0.0)
         loss = msg.get('loss', 0.4);   rtt  = msg.get('rtt', 500.0)
         bler = msg.get('bler', 0.25);  pwr  = msg.get('power', 0.5)
-        gain = float(np.clip(np.sqrt(max(pwr, 1e-6) / 0.5), 0.01, 5.0))
+        gain = msg.get('gain', float(np.clip(np.sqrt(max(pwr, 1e-6) / 0.5), 0.01, 5.0)))
         rew  = _calc_reward(snr, tput, loss, rtt, bler, gain)
 
         bufs["snr"].append(snr);    bufs["tput"].append(tput)
@@ -443,12 +443,17 @@ class RLAgent:
                 if step % LOG_EVERY == 0:
                     gl_s    = f"{np.mean(buf_gl):.3f}" if buf_gl else "N/A"
                     dom     = int(np.argmax(act_counts))
+                    total_acts = max(sum(act_counts), 1)
+                    avg_gain = sum(
+                        self.env.GAIN_TARGETS[i] * act_counts[i]
+                        for i in range(self.env.action_space.n)
+                    ) / total_acts
                     logging.info(
                         f"[{step:5d}] t={time.time()-t0:.0f}s | "
                         f"reward={np.mean(buf_r):6.2f} | "
                         f"SNR={np.mean(buf_snr):5.1f}dB | tput={np.mean(buf_tput):4.1f} | "
                         f"loss={np.mean(buf_loss):.3f} | "
-                        f"gain={self.env._gain:.2f} | "
+                        f"gain={avg_gain:.2f} | "
                         f"eps={epsilon:.3f} buf={self.model.replay_buffer.size()} | "
                         f"grad_loss={gl_s} | "
                         f"dom={self.env.ACTION_NAMES[dom]} | counts={act_counts}"

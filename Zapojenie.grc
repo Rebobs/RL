@@ -543,7 +543,7 @@ blocks:
       \        \"snr\":        snr,\n                    \"power\":      float(np.clip(pwr,\
       \ 0.0, 10.0)),\n                    \"cfo\":        0.0,\n                 \
       \   \"throughput\": tput,\n                    \"rtt\":        rtt,\n      \
-      \              \"loss\":       loss,\n                    \"bler\":       bler\n\
+      \              \"loss\":       loss,\n                    \"bler\":       bler,\n                    \"gain\":       _gain\n\
       \                })\n            except Exception as e:\n                print(f\"\
       [GRC] metrics err: {e}\")\n            time.sleep(0.05)\n\n    def work(self,\
       \ input_items, output_items):\n        if not self._running:\n            self._start_zmq()\n\

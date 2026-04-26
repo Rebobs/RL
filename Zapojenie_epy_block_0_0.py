@@ -83,7 +83,8 @@ class blk(gr.sync_block):
                     "throughput": tput,
                     "rtt":        rtt,
                     "loss":       loss,
-                    "bler":       bler
+                    "bler":       bler,
+                    "gain":       _gain
                 })
             except Exception as e:
                 print(f"[GRC] metrics err: {e}")
