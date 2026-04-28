@@ -266,11 +266,13 @@ class RadioEnvironment(gym.Env):
         loss = float(state[5])
         rtt  = float(state[4])
         bler = float(state[6])
-        # Základný reward z metrík
         r = 1.5 * tput - 15.0 * loss - 0.05 * rtt - 5.0 * bler
-        # Jemná penalizácia za odchylku od optimálneho gain (1.0)
-        # — slabá, len ako doplnok, nie dominantná
-        r -= abs(self._gain - 1.0) * 0.5
+        # Kvadratická gain penalizácia — rovnaká ako v monitore (sat+low).
+        # Pri novom loss=0 aj pre gain=1.5 je toto hlavný gradient
+        # medzi dobrými a suboptimálnymi gainmi.
+        sat = max(0.0, self._gain - 1.8) ** 2 * 8.0
+        low = max(0.0, 0.8 - self._gain) ** 2 * 20.0
+        r -= sat + low
         return float(r)
 
     # ── gym ──

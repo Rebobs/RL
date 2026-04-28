@@ -13,21 +13,27 @@ class blk(gr.sync_block):
         self._power   = 0.5
         self._running = False
         self._ctx     = None
-        self._pub     = None
+        self._push    = None
+        self._seq     = 0
 
     def _start_zmq(self):
         self._running = True
-        self._ctx = zmq.Context()
-        self._pub = self._ctx.socket(zmq.PUB)
-        self._pub.bind("tcp://127.0.0.1:5557")
-        threading.Thread(target=self._metrics_loop, daemon=True).start()
+        self._ctx  = zmq.Context()
+        self._push = self._ctx.socket(zmq.PUSH)
+        self._push.bind("tcp://127.0.0.1:5557")
+        threading.Thread(target=self._probe_loop, daemon=True).start()
         print("[GRC] ZMQ TX Reference start")
 
-    def _metrics_loop(self):
+    def _probe_loop(self):
         time.sleep(1.0)
         while self._running:
             try:
-                self._pub.send_json({"tx_power": float(self._power)})
+                self._push.send_json({
+                    "seq":      self._seq,
+                    "ts":       time.time(),
+                    "tx_power": float(self._power),
+                })
+                self._seq += 1
             except Exception as e:
                 print(f"[GRC] tx ref err: {e}")
             time.sleep(0.05)
@@ -41,7 +47,7 @@ class blk(gr.sync_block):
 
     def stop(self):
         self._running = False
-        if self._pub: self._pub.close()
-        if self._ctx: self._ctx.term()
+        if self._push: self._push.close()
+        if self._ctx:  self._ctx.term()
         print("[GRC] ZMQ TX Reference stop")
         return True
