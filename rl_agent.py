@@ -72,7 +72,7 @@ def build_monitor(monitor_cfg, metrics_address):
     INTERVAL = monitor_cfg.get("update_interval_ms", 100)
 
     bufs = {k: collections.deque([0.0] * WINDOW, maxlen=WINDOW)
-            for k in ("snr", "tput", "loss", "rtt", "reward", "gain")}
+            for k in ("snr", "tput", "loss", "reward", "gain")}
 
     ctx = zmq.Context()
     sub = ctx.socket(zmq.SUB)
@@ -94,11 +94,12 @@ def build_monitor(monitor_cfg, metrics_address):
         for spine in ax.spines.values():
             spine.set_edgecolor('#555')
 
+    axes[1,1].set_visible(False)
+
     specs = [
         ("snr",    axes[0,0], '#00bcd4', 'SNR (dB)',    (0, 25),   20),
         ("tput",   axes[0,1], '#4caf50', 'Throughput',  (0, 12),   10),
         ("loss",   axes[1,0], '#f44336', 'Packet Loss', (0, 0.45), None),
-        ("rtt",    axes[1,1], '#ff9800', 'RTT (ms)',    (0, 300),  None),
         ("reward", axes[2,0], '#e040fb', 'Reward',      (-25, 15), 0),
         ("gain",   axes[2,1], '#ffeb3b', 'Gain',        (0, 3.5),  1.0),
     ]
@@ -135,13 +136,13 @@ def build_monitor(monitor_cfg, metrics_address):
         rew  = _calc_reward(snr, tput, loss, rtt, bler, gain)
 
         bufs["snr"].append(snr);    bufs["tput"].append(tput)
-        bufs["loss"].append(loss);  bufs["rtt"].append(rtt)
+        bufs["loss"].append(loss)
         bufs["reward"].append(rew); bufs["gain"].append(gain)
         for key, line in lines.items():
             line.set_data(xs, list(bufs[key]))
         status.set_text(
             f"#{counter[0]:5d} | SNR={snr:5.1f}dB | tput={tput:4.1f} | "
-            f"loss={loss:.3f} | rtt={rtt:.0f}ms | gain≈{gain:.2f} | R={rew:6.2f}"
+            f"loss={loss:.3f} | gain≈{gain:.2f} | R={rew:6.2f}"
         )
         return list(lines.values())
 

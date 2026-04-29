@@ -20,7 +20,6 @@ WINDOW = 200   # koľko posledných bodov zobraziť
 snr_buf   = collections.deque([0.0] * WINDOW, maxlen=WINDOW)
 tput_buf  = collections.deque([0.0] * WINDOW, maxlen=WINDOW)
 loss_buf  = collections.deque([0.0] * WINDOW, maxlen=WINDOW)
-rtt_buf   = collections.deque([0.0] * WINDOW, maxlen=WINDOW)
 reward_buf= collections.deque([0.0] * WINDOW, maxlen=WINDOW)
 gain_buf  = collections.deque([1.0] * WINDOW, maxlen=WINDOW)
 
@@ -52,6 +51,7 @@ for ax in axes.flat:
         spine.set_edgecolor('#555')
 
 ax_snr, ax_tput, ax_loss, ax_rtt, ax_reward, ax_gain = axes.flat
+ax_rtt.set_visible(False)
 
 def make_line(ax, color, ylabel, title, ylim=None):
     line, = ax.plot([], [], color=color, linewidth=1.5)
@@ -66,7 +66,6 @@ def make_line(ax, color, ylabel, title, ylim=None):
 ln_snr    = make_line(ax_snr,    '#00bcd4', 'dB',   'SNR',        (0, 25))
 ln_tput   = make_line(ax_tput,   '#4caf50', 'Mbps', 'Throughput', (0, 12))
 ln_loss   = make_line(ax_loss,   '#f44336', '',     'Packet Loss',(0, 0.45))
-ln_rtt    = make_line(ax_rtt,    '#ff9800', 'ms',   'RTT',        (0, 300))
 ln_reward = make_line(ax_reward, '#e040fb', '',     'Reward',     (-25, 15))
 ln_gain   = make_line(ax_gain,   '#ffeb3b', '',     'Gain (agent)',(0, 3.5))
 
@@ -95,7 +94,7 @@ def update(_frame):
         pass
 
     if msg is None:
-        return ln_snr, ln_tput, ln_loss, ln_rtt, ln_reward, ln_gain
+        return ln_snr, ln_tput, ln_loss, ln_reward, ln_gain
 
     step_counter[0] += 1
     snr  = msg.get('snr',        0.0)
@@ -116,24 +115,22 @@ def update(_frame):
     snr_buf.append(snr)
     tput_buf.append(tput)
     loss_buf.append(loss)
-    rtt_buf.append(rtt)
     reward_buf.append(reward)
     gain_buf.append(gain_est)
 
     ln_snr.set_data(xs, list(snr_buf))
     ln_tput.set_data(xs, list(tput_buf))
     ln_loss.set_data(xs, list(loss_buf))
-    ln_rtt.set_data(xs, list(rtt_buf))
     ln_reward.set_data(xs, list(reward_buf))
     ln_gain.set_data(xs, list(gain_buf))
 
     status_text.set_text(
         f"Metriky #{step_counter[0]:5d} | "
         f"SNR={snr:5.1f}dB | tput={tput:4.1f} | loss={loss:.3f} | "
-        f"rtt={rtt:.0f}ms | gain≈{gain_est:.2f} | reward={reward:6.2f}"
+        f"gain≈{gain_est:.2f} | reward={reward:6.2f}"
     )
 
-    return ln_snr, ln_tput, ln_loss, ln_rtt, ln_reward, ln_gain
+    return ln_snr, ln_tput, ln_loss, ln_reward, ln_gain
 
 ani = animation.FuncAnimation(fig, update, interval=100, blit=False, cache_frame_data=False)
 
