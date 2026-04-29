@@ -72,7 +72,7 @@ def build_monitor(monitor_cfg, metrics_address):
     INTERVAL = monitor_cfg.get("update_interval_ms", 100)
 
     bufs = {k: collections.deque([0.0] * WINDOW, maxlen=WINDOW)
-            for k in ("snr", "tput", "loss", "rtt", "reward", "gain")}
+            for k in ("snr", "tput", "loss", "reward", "gain")}
 
     ctx = zmq.Context()
     sub = ctx.socket(zmq.SUB)
@@ -80,10 +80,10 @@ def build_monitor(monitor_cfg, metrics_address):
     sub.setsockopt(zmq.SUBSCRIBE, b'')
     sub.setsockopt(zmq.RCVTIMEO, 0)   # neblokuje
 
-    def _calc_reward(snr, tput, loss, rtt, bler, gain):
+    def _calc_reward(snr, tput, loss, bler, gain):
         sat = max(0.0, gain - 1.8) ** 2 * 8.0
         low = max(0.0, 0.8 - gain) ** 2 * 20.0
-        return 1.5*tput - 15.0*loss - 0.05*rtt - 5.0*bler - sat - low
+        return 1.5*tput - 15.0*loss - 5.0*bler - sat - low
 
     fig, axes = plt.subplots(3, 2, figsize=(13, 8))
     fig.suptitle("RL Agent — Live Monitor", fontsize=14, fontweight='bold')
@@ -97,11 +97,11 @@ def build_monitor(monitor_cfg, metrics_address):
     specs = [
         ("snr",    axes[0,0], '#00bcd4', 'SNR (dB)',    (0, 25),   20),
         ("tput",   axes[0,1], '#4caf50', 'Throughput',  (0, 12),   10),
-        ("loss",   axes[1,0], '#f44336', 'Packet Loss', (0, 0.45), None),
-        ("rtt",    axes[1,1], '#ff9800', 'RTT (ms)',    (0, 300),  None),
+        ("loss",   axes[1,0], '#f44336', 'Packet Loss', (0, 1.05), None),
+        ("gain",   axes[1,1], '#ffeb3b', 'Gain',        (0, 3.5),  1.0),
         ("reward", axes[2,0], '#e040fb', 'Reward',      (-25, 15), 0),
-        ("gain",   axes[2,1], '#ffeb3b', 'Gain',        (0, 3.5),  1.0),
     ]
+    axes[2,1].set_visible(False)
     lines = {}
     xs = list(range(WINDOW))
     for key, ax, color, title, ylim, ref in specs:
@@ -129,19 +129,19 @@ def build_monitor(monitor_cfg, metrics_address):
 
         counter[0] += 1
         snr  = msg.get('snr', 0.0);   tput = msg.get('throughput', 0.0)
-        loss = msg.get('loss', 0.4);   rtt  = msg.get('rtt', 500.0)
-        bler = msg.get('bler', 0.25);  pwr  = msg.get('power', 0.5)
+        loss = msg.get('loss', 0.4);   bler = msg.get('bler', 0.25)
+        pwr  = msg.get('power', 0.5)
         gain = msg.get('gain', float(np.clip(np.sqrt(max(pwr, 1e-6) / 0.5), 0.01, 5.0)))
-        rew  = _calc_reward(snr, tput, loss, rtt, bler, gain)
+        rew  = _calc_reward(snr, tput, loss, bler, gain)
 
         bufs["snr"].append(snr);    bufs["tput"].append(tput)
-        bufs["loss"].append(loss);  bufs["rtt"].append(rtt)
-        bufs["reward"].append(rew); bufs["gain"].append(gain)
+        bufs["loss"].append(loss);  bufs["gain"].append(gain)
+        bufs["reward"].append(rew)
         for key, line in lines.items():
             line.set_data(xs, list(bufs[key]))
         status.set_text(
             f"#{counter[0]:5d} | SNR={snr:5.1f}dB | tput={tput:4.1f} | "
-            f"loss={loss:.3f} | rtt={rtt:.0f}ms | gain≈{gain:.2f} | R={rew:6.2f}"
+            f"loss={loss:.3f} | gain={gain:.2f} | R={rew:6.2f}"
         )
         return list(lines.values())
 
@@ -226,7 +226,7 @@ class RadioEnvironment(gym.Env):
                 msg.get("power",       0.5),
                 msg.get("cfo",         0.0),
                 msg.get("throughput", 10.0),
-                msg.get("rtt",        50.0),
+                msg.get("rtt",         0.0),
                 msg.get("loss",       0.01),
                 msg.get("bler",       0.02),
             ], dtype=np.float32)
@@ -264,9 +264,8 @@ class RadioEnvironment(gym.Env):
     def calculate_reward(self, state):
         tput = float(state[3])
         loss = float(state[5])
-        rtt  = float(state[4])
         bler = float(state[6])
-        r = 1.5 * tput - 15.0 * loss - 0.05 * rtt - 5.0 * bler
+        r = 1.5 * tput - 15.0 * loss - 5.0 * bler
         # Kvadratická gain penalizácia — rovnaká ako v monitore (sat+low).
         # Pri novom loss=0 aj pre gain=1.5 je toto hlavný gradient
         # medzi dobrými a suboptimálnymi gainmi.
@@ -431,7 +430,7 @@ class RLAgent:
                         f"k={step:5d} {src:5s} | akcia={self.env.ACTION_NAMES[action]:10s} | "
                         f"gain={self.env._gain:.2f} | "
                         f"SNR={next_obs[0]:5.1f}dB tput={next_obs[3]:5.1f} "
-                        f"loss={next_obs[5]:.3f} rtt={next_obs[4]:.0f}ms | "
+                        f"loss={next_obs[5]:.3f} | "
                         f"R={reward:7.2f} | eps={epsilon:.3f}"
                     )
 

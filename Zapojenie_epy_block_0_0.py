@@ -4,8 +4,6 @@ import zmq
 import json
 import threading
 import time
-import math
-import random
 import collections
 
 _gain  = 3.0
@@ -13,17 +11,15 @@ _phase = 0.0
 _eq_mu = 0.001
 
 BASE_SNR_DB  = 20.0
-PACKET_BITS  = 336 * 8
-PROBE_WINDOW = 60
+PACKET_SIZE  = 336
+EVAL_DELAY   = 2.0
+LOSS_WINDOW  = 80
+MAGIC        = (0xDE, 0xAD)
 
 
-def _per_from_gain(gain):
-    snr_penalty = (gain - 1.0) ** 2 * 15.0
-    snr_db      = max(0.0, BASE_SNR_DB - snr_penalty)
-    snr_linear  = 10.0 ** (snr_db / 10.0)
-    ber = 0.5 * math.erfc(math.sqrt(max(snr_linear / 2.0, 0.0)))
-    per = 1.0 - (1.0 - ber) ** PACKET_BITS
-    return float(np.clip(per, 0.0, 1.0)), float(snr_db)
+def _snr_from_gain(gain):
+    snr_db = max(0.0, BASE_SNR_DB - (gain - 1.0) ** 2 * 15.0)
+    return float(snr_db)
 
 
 class blk(gr.sync_block):
@@ -39,9 +35,18 @@ class blk(gr.sync_block):
         self._pub      = None
         self._ref_sock = None
 
-        self._last_seq   = None
-        self._rx_window  = collections.deque(maxlen=PROBE_WINDOW)
-        self._rtt_window = collections.deque(maxlen=5)
+        # Sync state machine for magic-byte packet alignment.
+        # States: 0=searching 0xDE, 1=found 0xDE waiting 0xAD, 2=reading body
+        self._sync_state = 0
+        self._sym_buf    = np.zeros(4, dtype=np.int32)
+        self._sym_pos    = 0
+        self._byte_buf   = np.zeros(PACKET_SIZE, dtype=np.int32)
+        self._byte_pos   = 0
+
+        self._pending_tx  = {}
+        self._rx_seqs     = set()
+        self._loss_window = collections.deque(maxlen=LOSS_WINDOW)
+        self._real_loss   = 0.4
 
     def _start_zmq(self):
         self._running = True
@@ -71,7 +76,7 @@ class blk(gr.sync_block):
                 _gain  = float(np.clip(_gain  + data.get('gain',  0.0), 0.01, 5.0))
                 _phase = float(np.clip(_phase + data.get('phase', 0.0), -3.14, 3.14))
                 _eq_mu = float(np.clip(_eq_mu + data.get('eq_mu', 0.0), 0.0001, 0.1))
-                print(f"[GRC] gain={_gain:.3f} phase={_phase:.4f}")
+                print(f"[GRC] gain={_gain:.3f}")
                 self._rep.send(b'ok')
             except zmq.Again:
                 pass
@@ -84,24 +89,22 @@ class blk(gr.sync_block):
         time.sleep(1.0)
         while self._running:
             try:
-                self._process_probes()
+                self._read_tx_seqs()
+                self._evaluate_loss()
 
-                per, snr_db = _per_from_gain(_gain)
+                snr_db = _snr_from_gain(_gain)
                 snr  = float(snr_db + np.random.uniform(-0.3, 0.3))
                 pwr  = float(self._power)
-                bler = float(np.clip(per * 0.6 + np.random.uniform(-0.005, 0.005), 0.0, 1.0))
                 tput = float(np.clip(snr * 0.5 + np.random.uniform(-0.3, 0.3), 0.0, 100.0))
-
-                loss = self._real_loss()
-                rtt  = self._real_rtt(loss)
+                bler = float(np.clip(self._real_loss * 0.6, 0.0, 1.0))
 
                 self._pub.send_json({
                     "snr":        snr,
                     "power":      float(np.clip(pwr, 0.0, 10.0)),
                     "cfo":        0.0,
                     "throughput": tput,
-                    "rtt":        rtt,
-                    "loss":       loss,
+                    "rtt":        0.0,
+                    "loss":       self._real_loss,
                     "bler":       bler,
                     "gain":       _gain,
                 })
@@ -109,52 +112,72 @@ class blk(gr.sync_block):
                 print(f"[GRC] metrics err: {e}")
             time.sleep(0.05)
 
-    def _process_probes(self):
-        per, _ = _per_from_gain(_gain)
+    def _read_tx_seqs(self):
         try:
             while True:
-                raw   = self._ref_sock.recv()
-                probe = json.loads(raw.decode())
-                seq   = probe["seq"]
-                ts    = probe["ts"]
-
-                if self._last_seq is not None:
-                    gap = seq - self._last_seq - 1
-                    for _ in range(min(gap, 10)):
-                        self._rx_window.append(False)
-                self._last_seq = seq
-
-                received = random.random() > per
-                self._rx_window.append(received)
-
-                loss_now   = self._real_loss()
-                retx       = loss_now / max(1.0 - loss_now, 0.01)
-                queuing_ms = retx * 30.0
-                rtt_sample = float(np.clip(30.0 + queuing_ms, 20.0, 500.0))
-                self._rtt_window.append(rtt_sample)
-
+                msg = self._ref_sock.recv_json()
+                self._pending_tx[msg["seq"]] = msg["ts"]
         except zmq.Again:
             pass
         except Exception as e:
-            print(f"[GRC] probe recv err: {e}")
+            print(f"[GRC] tx seq err: {e}")
 
-    def _real_loss(self):
-        if not self._rx_window:
-            return 0.4
-        return float(1.0 - sum(self._rx_window) / len(self._rx_window))
+    def _evaluate_loss(self):
+        now     = time.time()
+        expired = [seq for seq, ts in self._pending_tx.items()
+                   if now - ts > EVAL_DELAY]
+        for seq in expired:
+            self._pending_tx.pop(seq)
+            received = seq in self._rx_seqs
+            self._loss_window.append(received)
+            self._rx_seqs.discard(seq)
 
-    def _real_rtt(self, loss):
-        if not self._rtt_window:
-            retx = loss / max(1.0 - loss, 0.01)
-            return float(np.clip(20.0 + retx * 30.0, 20.0, 500.0))
-        return float(np.mean(self._rtt_window))
+        if self._loss_window:
+            self._real_loss = float(1.0 - sum(self._loss_window) / len(self._loss_window))
+
+    def _process_byte(self, byte_val):
+        if self._sync_state == 0:
+            if byte_val == MAGIC[0]:
+                self._sync_state = 1
+        elif self._sync_state == 1:
+            if byte_val == MAGIC[1]:
+                self._byte_buf[0] = MAGIC[0]
+                self._byte_buf[1] = MAGIC[1]
+                self._byte_pos    = 2
+                self._sync_state  = 2
+            else:
+                self._sync_state = 0
+                if byte_val == MAGIC[0]:
+                    self._sync_state = 1
+        else:
+            self._byte_buf[self._byte_pos] = byte_val
+            self._byte_pos += 1
+            if self._byte_pos == PACKET_SIZE:
+                rx_seq = (int(self._byte_buf[2]) << 8) | int(self._byte_buf[3])
+                self._rx_seqs.add(rx_seq)
+                self._byte_pos   = 0
+                self._sync_state = 0
 
     def work(self, input_items, output_items):
         if not self._running:
             self._start_zmq()
+
         rot = np.exp(1j * _phase).astype(np.complex64)
         output_items[0][:] = input_items[0] * np.float32(_gain) * rot
         self._power = float(np.mean(np.abs(output_items[0]) ** 2))
+
+        syms = np.round(input_items[0].real).astype(np.int32) & 0x3
+        for sym in syms:
+            self._sym_buf[self._sym_pos] = sym
+            self._sym_pos += 1
+            if self._sym_pos == 4:
+                byte_val = (int(self._sym_buf[0]) << 6 |
+                            int(self._sym_buf[1]) << 4 |
+                            int(self._sym_buf[2]) << 2 |
+                            int(self._sym_buf[3])) & 0xFF
+                self._sym_pos = 0
+                self._process_byte(byte_val)
+
         return len(output_items[0])
 
     def stop(self):

@@ -12,7 +12,6 @@ from PyQt5 import Qt
 from gnuradio import qtgui
 from gnuradio import analog
 from gnuradio import blocks
-import numpy
 from gnuradio import channels
 from gnuradio.filter import firdes
 from gnuradio import digital
@@ -86,7 +85,7 @@ class Zapojenie(gr.top_block, Qt.QWidget):
         self.epy_block_0 = epy_block_0.blk(example_param=0)
         self.digital_constellation_modulator_0 = digital.generic_mod(
             constellation=variable_constellation_0,
-            differential=True,
+            differential=False,
             samples_per_symbol=Samp_Symb,
             pre_diff_code=True,
             excess_bw=Excess_BW,
@@ -104,15 +103,11 @@ class Zapojenie(gr.top_block, Qt.QWidget):
         self.blocks_throttle2_0 = blocks.throttle( gr.sizeof_gr_complex*1, samp_rate, True, 0 if "auto" == "auto" else max( int(float(0.1) * samp_rate) if "auto" == "time" else int(0.1), 1) )
         self.blocks_stream_to_tagged_stream_0 = blocks.stream_to_tagged_stream(gr.sizeof_char, 1, 336, "packet_len")
         self.blocks_rotator_cc_0 = blocks.rotator_cc(0.0, False)
-        self.blocks_null_sink_1 = blocks.null_sink(gr.sizeof_gr_complex*1)
         self.blocks_null_sink_0 = blocks.null_sink(gr.sizeof_gr_complex*1)
         self.blocks_multiply_const_vxx_0 = blocks.multiply_const_cc(1)
         self.blocks_float_to_complex_1 = blocks.float_to_complex(1)
-        self.blocks_float_to_complex_0 = blocks.float_to_complex(1)
         self.blocks_char_to_float_1 = blocks.char_to_float(1, 1)
-        self.blocks_char_to_float_0 = blocks.char_to_float(1, 1)
         self.blocks_add_xx_0 = blocks.add_vcc(1)
-        self.analog_random_source_x_0 = blocks.vector_source_b(list(map(int, numpy.random.randint(0, 256, 100000))), True)
         self.analog_noise_source_x_0 = analog.noise_source_c(analog.GR_GAUSSIAN, 0.1, 0)
 
 
@@ -120,12 +115,8 @@ class Zapojenie(gr.top_block, Qt.QWidget):
         # Connections
         ##################################################
         self.connect((self.analog_noise_source_x_0, 0), (self.blocks_add_xx_0, 1))
-        self.connect((self.analog_random_source_x_0, 0), (self.blocks_char_to_float_0, 0))
-        self.connect((self.analog_random_source_x_0, 0), (self.blocks_stream_to_tagged_stream_0, 0))
         self.connect((self.blocks_add_xx_0, 0), (self.blocks_multiply_const_vxx_0, 0))
-        self.connect((self.blocks_char_to_float_0, 0), (self.blocks_float_to_complex_0, 0))
         self.connect((self.blocks_char_to_float_1, 0), (self.blocks_float_to_complex_1, 0))
-        self.connect((self.blocks_float_to_complex_0, 0), (self.epy_block_0, 0))
         self.connect((self.blocks_float_to_complex_1, 0), (self.epy_block_0_0, 0))
         self.connect((self.blocks_multiply_const_vxx_0, 0), (self.blocks_rotator_cc_0, 0))
         self.connect((self.blocks_rotator_cc_0, 0), (self.digital_constellation_decoder_cb_0, 0))
@@ -134,7 +125,7 @@ class Zapojenie(gr.top_block, Qt.QWidget):
         self.connect((self.channels_channel_model_0, 0), (self.blocks_add_xx_0, 0))
         self.connect((self.digital_constellation_decoder_cb_0, 0), (self.blocks_char_to_float_1, 0))
         self.connect((self.digital_constellation_modulator_0, 0), (self.blocks_throttle2_0, 0))
-        self.connect((self.epy_block_0, 0), (self.blocks_null_sink_1, 0))
+        self.connect((self.epy_block_0, 0), (self.blocks_stream_to_tagged_stream_0, 0))
         self.connect((self.epy_block_0_0, 0), (self.blocks_null_sink_0, 0))
 
 
