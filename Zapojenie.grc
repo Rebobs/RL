@@ -28,11 +28,10 @@ options:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate:
-    - 8
-    - 8
+    coordinate: [8, 8]
     rotation: 0
     state: enabled
+
 blocks:
 - name: Excess_BW
   id: variable
@@ -43,9 +42,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate:
-    - 624
-    - 16.0
+    coordinate: [624, 16.0]
     rotation: 0
     state: enabled
 - name: Loop_Bandwidth
@@ -57,9 +54,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate:
-    - 304
-    - 16.0
+    coordinate: [304, 16.0]
     rotation: 0
     state: enabled
 - name: Samp_Symb
@@ -71,9 +66,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate:
-    - 520
-    - 16.0
+    coordinate: [520, 16.0]
     rotation: 0
     state: enabled
 - name: eq_mu
@@ -85,9 +78,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate:
-    - 1256
-    - 16.0
+    coordinate: [1256, 16.0]
     rotation: 0
     state: enabled
 - name: gain
@@ -99,9 +90,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate:
-    - 1048
-    - 16.0
+    coordinate: [1048, 16.0]
     rotation: 0
     state: enabled
 - name: nfilts
@@ -113,9 +102,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate:
-    - 440
-    - 16.0
+    coordinate: [440, 16.0]
     rotation: 0
     state: enabled
 - name: phase
@@ -127,9 +114,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate:
-    - 1152
-    - 16.0
+    coordinate: [1152, 16.0]
     rotation: 0
     state: enabled
 - name: rcc_tabs
@@ -142,9 +127,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate:
-    - 880
-    - 16.0
+    coordinate: [880, 16.0]
     rotation: 0
     state: enabled
 - name: samp_rate
@@ -156,9 +139,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate:
-    - 184
-    - 12
+    coordinate: [184, 12]
     rotation: 0
     state: enabled
 - name: variable_constellation_0
@@ -178,9 +159,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate:
-    - 720
-    - 16.0
+    coordinate: [720, 16.0]
     rotation: 0
     state: enabled
 - name: analog_noise_source_x_0
@@ -188,7 +167,7 @@ blocks:
   parameters:
     affinity: ''
     alias: ''
-    amp: '0.1'
+    amp: '0'
     comment: ''
     maxoutbuf: '0'
     minoutbuf: '0'
@@ -199,9 +178,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate:
-    - 832
-    - 328.0
+    coordinate: [832, 328.0]
     rotation: 0
     state: enabled
 - name: analog_random_source_x_0
@@ -221,9 +198,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate:
-    - 24
-    - 144.0
+    coordinate: [24, 144.0]
     rotation: 0
     state: enabled
 - name: blocks_add_xx_0
@@ -241,9 +216,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate:
-    - 1080
-    - 240.0
+    coordinate: [1080, 240.0]
     rotation: 0
     state: enabled
 - name: blocks_char_to_float_0
@@ -260,9 +233,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate:
-    - 200
-    - 248.0
+    coordinate: [200, 248.0]
     rotation: 0
     state: enabled
 - name: blocks_char_to_float_1
@@ -279,9 +250,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate:
-    - 1824
-    - 264.0
+    coordinate: [1824, 264.0]
     rotation: 0
     state: enabled
 - name: blocks_float_to_complex_0
@@ -297,9 +266,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate:
-    - 360
-    - 256.0
+    coordinate: [360, 256.0]
     rotation: 0
     state: enabled
 - name: blocks_float_to_complex_1
@@ -315,9 +282,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate:
-    - 1984
-    - 272.0
+    coordinate: [1984, 272.0]
     rotation: 0
     state: enabled
 - name: blocks_multiply_const_vxx_0
@@ -335,9 +300,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate:
-    - 1176
-    - 248.0
+    coordinate: [1176, 248.0]
     rotation: 0
     state: enabled
 - name: blocks_null_sink_0
@@ -354,9 +317,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate:
-    - 2264
-    - 360.0
+    coordinate: [2264, 360.0]
     rotation: 0
     state: enabled
 - name: blocks_null_sink_1
@@ -373,9 +334,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate:
-    - 712
-    - 272.0
+    coordinate: [712, 272.0]
     rotation: 0
     state: enabled
 - name: blocks_rotator_cc_0
@@ -392,9 +351,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate:
-    - 1368
-    - 256.0
+    coordinate: [1368, 256.0]
     rotation: 0
     state: enabled
 - name: blocks_stream_to_tagged_stream_0
@@ -413,9 +370,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate:
-    - 216
-    - 160.0
+    coordinate: [216, 160.0]
     rotation: 0
     state: enabled
 - name: blocks_throttle2_0
@@ -436,9 +391,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate:
-    - 664
-    - 160.0
+    coordinate: [664, 160.0]
     rotation: 0
     state: enabled
 - name: channels_channel_model_0
@@ -452,18 +405,16 @@ blocks:
     freq_offset: '0.0'
     maxoutbuf: '0'
     minoutbuf: '0'
-    noise_voltage: '0.1'
+    noise_voltage: '0'
     seed: '0'
     taps: 1+0j
   states:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate:
-    - 840
-    - 128.0
+    coordinate: [840, 128.0]
     rotation: 0
-    state: enabled
+    state: disabled
 - name: digital_constellation_decoder_cb_0
   id: digital_constellation_decoder_cb
   parameters:
@@ -477,33 +428,23 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate:
-    - 1608
-    - 264.0
+    coordinate: [1608, 264.0]
     rotation: 0
     state: enabled
-- name: digital_constellation_modulator_0
-  id: digital_constellation_modulator
+- name: digital_constellation_encoder_bc_0
+  id: digital_constellation_encoder_bc
   parameters:
     affinity: ''
     alias: ''
     comment: ''
-    constellation: variable_constellation_0
-    differential: 'True'
-    excess_bw: Excess_BW
-    log: 'False'
+    constellation: ''
     maxoutbuf: '0'
     minoutbuf: '0'
-    samples_per_symbol: Samp_Symb
-    truncate: 'True'
-    verbose: 'False'
   states:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate:
-    - 424
-    - 136.0
+    coordinate: [440, 168.0]
     rotation: 0
     state: enabled
 - name: digital_pfb_clock_sync_xxx_0
@@ -526,9 +467,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate:
-    - 1344
-    - 356.0
+    coordinate: [1464, 12.0]
     rotation: 0
     state: disabled
 - name: epy_block_0
@@ -568,9 +507,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate:
-    - 544
-    - 264.0
+    coordinate: [544, 264.0]
     rotation: 0
     state: enabled
 - name: epy_block_0_0
@@ -598,7 +535,7 @@ blocks:
       \        self._ref_sock.connect(\"tcp://127.0.0.1:5557\")\n        self._ref_sock.setsockopt(zmq.RCVTIMEO,\
       \ 0)\n\n        threading.Thread(target=self._ctrl_loop,    daemon=True).start()\n\
       \        threading.Thread(target=self._metrics_loop, daemon=True).start()\n\
-      \        print(f\"[GRC] ZMQ Bridge start — gain={_gain}\")\n\n    def _ctrl_loop(self):\n\
+      \        print(f\"[GRC] ZMQ Bridge start \u2014 gain={_gain}\")\n\n    def _ctrl_loop(self):\n\
       \        global _gain, _phase, _eq_mu\n        while self._running:\n      \
       \      try:\n                raw  = self._rep.recv()\n                data =\
       \ json.loads(raw.decode('utf-8'))\n                _gain  = float(np.clip(_gain\
@@ -661,80 +598,128 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate:
-    - 2096
-    - 352.0
+    coordinate: [2096, 352.0]
     rotation: 0
     state: enabled
+- name: qtgui_time_sink_x_0
+  id: qtgui_time_sink_x
+  parameters:
+    affinity: ''
+    alias: ''
+    alpha1: '1.0'
+    alpha10: '1.0'
+    alpha2: '1.0'
+    alpha3: '1.0'
+    alpha4: '1.0'
+    alpha5: '1.0'
+    alpha6: '1.0'
+    alpha7: '1.0'
+    alpha8: '1.0'
+    alpha9: '1.0'
+    autoscale: 'True'
+    axislabels: 'True'
+    color1: blue
+    color10: dark blue
+    color2: red
+    color3: green
+    color4: black
+    color5: cyan
+    color6: magenta
+    color7: yellow
+    color8: dark red
+    color9: dark green
+    comment: ''
+    ctrlpanel: 'False'
+    entags: 'True'
+    grid: 'False'
+    gui_hint: ''
+    label1: Signal 1
+    label10: Signal 10
+    label2: Signal 2
+    label3: Signal 3
+    label4: Signal 4
+    label5: Signal 5
+    label6: Signal 6
+    label7: Signal 7
+    label8: Signal 8
+    label9: Signal 9
+    legend: 'True'
+    marker1: '-1'
+    marker10: '-1'
+    marker2: '-1'
+    marker3: '-1'
+    marker4: '-1'
+    marker5: '-1'
+    marker6: '-1'
+    marker7: '-1'
+    marker8: '-1'
+    marker9: '-1'
+    name: '""'
+    nconnections: '2'
+    size: '1024'
+    srate: samp_rate
+    stemplot: 'False'
+    style1: '1'
+    style10: '1'
+    style2: '1'
+    style3: '1'
+    style4: '1'
+    style5: '1'
+    style6: '1'
+    style7: '1'
+    style8: '1'
+    style9: '1'
+    tr_chan: '0'
+    tr_delay: '0'
+    tr_level: '0.0'
+    tr_mode: qtgui.TRIG_MODE_FREE
+    tr_slope: qtgui.TRIG_SLOPE_POS
+    tr_tag: '""'
+    type: float
+    update_time: '0.10'
+    width1: '1'
+    width10: '1'
+    width2: '1'
+    width3: '1'
+    width4: '1'
+    width5: '1'
+    width6: '1'
+    width7: '1'
+    width8: '1'
+    width9: '1'
+    ylabel: Amplitude
+    ymax: '1'
+    ymin: '-1'
+    yunit: '""'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [1112, 480.0]
+    rotation: 0
+    state: enabled
+
 connections:
-- - analog_noise_source_x_0
-  - '0'
-  - blocks_add_xx_0
-  - '1'
-- - analog_random_source_x_0
-  - '0'
-  - blocks_char_to_float_0
-  - '0'
-- - analog_random_source_x_0
-  - '0'
-  - blocks_stream_to_tagged_stream_0
-  - '0'
-- - blocks_add_xx_0
-  - '0'
-  - blocks_multiply_const_vxx_0
-  - '0'
-- - blocks_char_to_float_0
-  - '0'
-  - blocks_float_to_complex_0
-  - '0'
-- - blocks_char_to_float_1
-  - '0'
-  - blocks_float_to_complex_1
-  - '0'
-- - blocks_float_to_complex_0
-  - '0'
-  - epy_block_0
-  - '0'
-- - blocks_float_to_complex_1
-  - '0'
-  - epy_block_0_0
-  - '0'
-- - blocks_multiply_const_vxx_0
-  - '0'
-  - blocks_rotator_cc_0
-  - '0'
-- - blocks_rotator_cc_0
-  - '0'
-  - digital_constellation_decoder_cb_0
-  - '0'
-- - blocks_stream_to_tagged_stream_0
-  - '0'
-  - digital_constellation_modulator_0
-  - '0'
-- - blocks_throttle2_0
-  - '0'
-  - channels_channel_model_0
-  - '0'
-- - channels_channel_model_0
-  - '0'
-  - blocks_add_xx_0
-  - '0'
-- - digital_constellation_decoder_cb_0
-  - '0'
-  - blocks_char_to_float_1
-  - '0'
-- - digital_constellation_modulator_0
-  - '0'
-  - blocks_throttle2_0
-  - '0'
-- - epy_block_0
-  - '0'
-  - blocks_null_sink_1
-  - '0'
-- - epy_block_0_0
-  - '0'
-  - blocks_null_sink_0
-  - '0'
+- [analog_noise_source_x_0, '0', blocks_add_xx_0, '1']
+- [analog_random_source_x_0, '0', blocks_char_to_float_0, '0']
+- [analog_random_source_x_0, '0', blocks_stream_to_tagged_stream_0, '0']
+- [blocks_add_xx_0, '0', blocks_multiply_const_vxx_0, '0']
+- [blocks_char_to_float_0, '0', blocks_float_to_complex_0, '0']
+- [blocks_char_to_float_0, '0', qtgui_time_sink_x_0, '0']
+- [blocks_char_to_float_1, '0', blocks_float_to_complex_1, '0']
+- [blocks_char_to_float_1, '0', qtgui_time_sink_x_0, '1']
+- [blocks_float_to_complex_0, '0', epy_block_0, '0']
+- [blocks_float_to_complex_1, '0', epy_block_0_0, '0']
+- [blocks_multiply_const_vxx_0, '0', blocks_rotator_cc_0, '0']
+- [blocks_rotator_cc_0, '0', digital_constellation_decoder_cb_0, '0']
+- [blocks_stream_to_tagged_stream_0, '0', digital_constellation_encoder_bc_0, '0']
+- [blocks_throttle2_0, '0', channels_channel_model_0, '0']
+- [channels_channel_model_0, '0', blocks_add_xx_0, '0']
+- [digital_constellation_decoder_cb_0, '0', blocks_char_to_float_1, '0']
+- [digital_constellation_encoder_bc_0, '0', blocks_throttle2_0, '0']
+- [epy_block_0, '0', blocks_null_sink_1, '0']
+- [epy_block_0_0, '0', blocks_null_sink_0, '0']
+
 metadata:
   file_format: 1
   grc_version: 3.10.12.0
