@@ -10,7 +10,7 @@
     },
     "monitor": {
         "enabled": true,
-        "window": 500,
+        "window": 1000,
         "update_interval_ms": 100
     },
     "training": {

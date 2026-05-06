@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-RL Agent pre GNU Radio — absolútne gain akcie.
+RL Agent pre GNU Radio — BER minimalizácia cez kontrolu šumu.
 
-Namiesto inkrementálnych (+0.1 / -0.1) agent PRIAMO nastaví gain
-na jednu z 9 pevných hodnôt. Žiadny drift, žiadne katastrofálne zážitky.
+Agent volí hladinu šumu (noise_sigma). GNU Radio Bridge pridáva AWGN
+s danou sigmou, Python porovnáva TX vs. RX bity a meria BER.
+Reward = -log10(BER): vyšší reward = nižší BER.
 """
 
 import zmq, json, time, random, os, sys, logging, threading
@@ -46,8 +47,7 @@ def load_config():
 # ── monitor ───────────────────────────────────────────────────────────────────
 def build_monitor(monitor_cfg, metrics_address):
     """
-    Vráti (fig, animate_fn) pre hlavné vlákno, alebo None ak GUI nedostupné.
-    Agent beží v samostatnom vlákne, matplotlib v hlavnom.
+    Vráti (fig, ani) pre hlavné vlákno, alebo (None, None) ak GUI nedostupné.
     """
     try:
         import collections
@@ -68,52 +68,52 @@ def build_monitor(monitor_cfg, metrics_address):
         return None, None
 
     import collections
-    WINDOW   = monitor_cfg.get("window", 200)
+    WINDOW   = monitor_cfg.get("window", 1000)
     INTERVAL = monitor_cfg.get("update_interval_ms", 100)
 
     bufs = {k: collections.deque([0.0] * WINDOW, maxlen=WINDOW)
-            for k in ("snr", "tput", "loss", "reward", "gain")}
+            for k in ("snr", "ber", "reward")}
 
     ctx = zmq.Context()
     sub = ctx.socket(zmq.SUB)
     sub.connect(metrics_address)
     sub.setsockopt(zmq.SUBSCRIBE, b'')
-    sub.setsockopt(zmq.RCVTIMEO, 0)   # neblokuje
+    sub.setsockopt(zmq.RCVTIMEO, 0)
 
-    def _calc_reward(snr, tput, loss, rtt, bler, gain):
-        sat = max(0.0, gain - 1.8) ** 2 * 8.0
-        low = max(0.0, 0.8 - gain) ** 2 * 20.0
-        return 1.5*tput - 15.0*loss - 0.05*rtt - 5.0*bler - sat - low
-
-    fig, axes = plt.subplots(3, 2, figsize=(13, 8))
-    fig.suptitle("RL Agent — Live Monitor", fontsize=14, fontweight='bold')
+    fig, axes = plt.subplots(3, 1, figsize=(9, 10))
+    fig.suptitle("RL Agent — BER Monitor", fontsize=14, fontweight='bold')
     fig.patch.set_facecolor('#1e1e1e')
-    for ax in axes.flat:
+    for ax in axes:
         ax.set_facecolor('#2d2d2d')
         ax.tick_params(colors='white')
         for spine in ax.spines.values():
             spine.set_edgecolor('#555')
 
-    axes[1,1].set_visible(False)
+    ax_snr, ax_ber, ax_rew = axes
 
-    specs = [
-        ("snr",    axes[0,0], '#00bcd4', 'SNR (dB)',    (0, 25),   20),
-        ("tput",   axes[0,1], '#4caf50', 'Throughput',  (0, 12),   10),
-        ("loss",   axes[1,0], '#f44336', 'Packet Loss', (0, 0.45), None),
-        ("reward", axes[2,0], '#e040fb', 'Reward',      (-25, 15), 0),
-        ("gain",   axes[2,1], '#ffeb3b', 'Gain',        (0, 3.5),  1.0),
-    ]
-    lines = {}
     xs = list(range(WINDOW))
-    for key, ax, color, title, ylim, ref in specs:
-        ax.set_xlim(0, WINDOW); ax.set_ylim(*ylim)
+    lines = {}
+
+    def _make(ax, key, color, title, ylim, ref=None, logy=False):
+        ax.set_xlim(0, WINDOW)
+        if logy:
+            ax.set_yscale('log')
+            ax.set_ylim(ylim)
+        else:
+            ax.set_ylim(*ylim)
         ax.set_title(title, color='white', fontsize=10)
         ax.grid(True, color='#444', linewidth=0.5)
-        lines[key], = ax.plot([], [], color=color, linewidth=1.5)
+        ax.tick_params(colors='white')
+        line, = ax.plot([], [], color=color, linewidth=1.5)
         if ref is not None:
             ax.axhline(ref, color='white', linewidth=0.8, linestyle='--', alpha=0.4)
+        lines[key] = line
 
-    status = fig.text(0.01, 0.01, '', color='#aaa', fontsize=9)
+    _make(ax_snr, "snr",    '#00bcd4', 'SNR (dB)',  (-10, 42), ref=20)
+    _make(ax_ber, "ber",    '#f44336', 'BER (log)', (1e-7, 1), logy=True)
+    _make(ax_rew, "reward", '#e040fb', 'Reward',    (-1, 7),   ref=0)
+
+    status  = fig.text(0.01, 0.01, '', color='#aaa', fontsize=9)
     counter = [0]
 
     def update(_):
@@ -129,20 +129,23 @@ def build_monitor(monitor_cfg, metrics_address):
             return list(lines.values())
 
         counter[0] += 1
-        snr  = msg.get('snr', 0.0);   tput = msg.get('throughput', 0.0)
-        loss = msg.get('loss', 0.4);   rtt  = msg.get('rtt', 500.0)
-        bler = msg.get('bler', 0.25);  pwr  = msg.get('power', 0.5)
-        gain = msg.get('gain', float(np.clip(np.sqrt(max(pwr, 1e-6) / 0.5), 0.01, 5.0)))
-        rew  = _calc_reward(snr, tput, loss, rtt, bler, gain)
+        snr   = msg.get('snr',         20.0)
+        ber   = msg.get('ber',          0.5)
+        sigma = msg.get('noise_sigma',  0.5)
+        ber   = max(ber, 1e-7)
+        rew   = float(-np.log10(ber))
 
-        bufs["snr"].append(snr);    bufs["tput"].append(tput)
-        bufs["loss"].append(loss)
-        bufs["reward"].append(rew); bufs["gain"].append(gain)
-        for key, line in lines.items():
-            line.set_data(xs, list(bufs[key]))
+        bufs["snr"].append(snr)
+        bufs["ber"].append(ber)
+        bufs["reward"].append(rew)
+
+        lines["snr"].set_data(xs,    list(bufs["snr"]))
+        lines["ber"].set_data(xs,    list(bufs["ber"]))
+        lines["reward"].set_data(xs, list(bufs["reward"]))
+
         status.set_text(
-            f"#{counter[0]:5d} | SNR={snr:5.1f}dB | tput={tput:4.1f} | "
-            f"loss={loss:.3f} | gain≈{gain:.2f} | R={rew:6.2f}"
+            f"#{counter[0]:5d} | SNR={snr:5.1f}dB | "
+            f"BER={ber:.2e} | noise_sigma={sigma:.3f} | R={rew:.2f}"
         )
         return list(lines.values())
 
@@ -150,32 +153,31 @@ def build_monitor(monitor_cfg, metrics_address):
                                   blit=False, cache_frame_data=False)
     plt.tight_layout(rect=[0, 0.03, 1, 0.96])
     logging.info("Monitor pripravený")
-    return fig, ani   # ani musí zostať nažive (garbage collector)
+    return fig, ani
 
 # ── environment ───────────────────────────────────────────────────────────────
 class RadioEnvironment(gym.Env):
     """
-    9 absolútnych gain akcií: agent povie 'chcem gain=X'.
-    Agent pošle do GNU Radia delta=(target - current).
-    Žiadny drift, žiadna kumulatívna chyba.
+    Agent nastaví hladinu šumu (noise_sigma).
+    Bridge pridá AWGN, Python zmeria BER porovnaním TX vs. RX bitov.
+    Reward = -log10(BER): vyšší reward = nižší BER.
 
-    Gain targets: [0.3, 0.5, 0.7, 0.9, 1.0, 1.2, 1.5, 1.8, 2.0]
+    Noise targets: [0.0, 0.1, 0.2, 0.3, 0.5, 0.7, 1.0, 1.5, 2.0, 3.0]
     """
-    GAIN_TARGETS = [0.3, 0.5, 0.7, 0.9, 1.0, 1.2, 1.5, 1.8, 2.0, 2.5, 3.0]
-    ACTION_NAMES = [f"gain={g:.1f}" for g in GAIN_TARGETS]
+    NOISE_TARGETS = [0.0, 0.1, 0.2, 0.3, 0.5, 0.7, 1.0, 1.5, 2.0, 3.0]
+    ACTION_NAMES  = [f"sigma={s:.1f}" for s in NOISE_TARGETS]
 
     def __init__(self, config):
         super().__init__()
         self.config = config
-        # obs: [snr, power, cfo, throughput, rtt, loss, bler]
+        # obs: [snr_db, ber, noise_sigma]
         self.observation_space = spaces.Box(
-            low =np.array([0.0,  0.0, -0.01,  0.0,   0.0, 0.0, 0.0], dtype=np.float32),
-            high=np.array([30.0, 10.0,  0.01, 100.0, 1000.0, 1.0, 1.0], dtype=np.float32),
+            low =np.array([-10.0, 0.0,  0.0], dtype=np.float32),
+            high=np.array([ 40.0, 1.0,  3.0], dtype=np.float32),
         )
-        self.action_space = spaces.Discrete(len(self.GAIN_TARGETS))
+        self.action_space = spaces.Discrete(len(self.NOISE_TARGETS))
 
-        self._gain  = 3.0   # GNU Radio štartuje s gain=3.0 — musí sedieť
-        self._phase = 0.0
+        self._noise_sigma = 0.5
 
         self.ctrl_sock    = None
         self.metrics_sock = None
@@ -210,7 +212,7 @@ class RadioEnvironment(gym.Env):
 
     # ── metriky ──
     def get_state(self):
-        default = np.array([15.0, 0.5, 0.0, 10.0, 50.0, 0.01, 0.02], dtype=np.float32)
+        default = np.array([20.0, 0.5, 0.5], dtype=np.float32)
         if not self.connected:
             return default
         try:
@@ -218,18 +220,13 @@ class RadioEnvironment(gym.Env):
                 logging.warning("Metriky: timeout, predvolené")
                 return default
             raw = self.metrics_sock.recv()
-            # vyčerpaj frontu — chceme najnovšiu správu
             while self.metrics_sock.poll(0) > 0:
                 raw = self.metrics_sock.recv()
             msg = json.loads(raw.decode('utf-8'))
             return np.array([
-                msg.get("snr",        15.0),
-                msg.get("power",       0.5),
-                msg.get("cfo",         0.0),
-                msg.get("throughput", 10.0),
-                msg.get("rtt",        50.0),
-                msg.get("loss",       0.01),
-                msg.get("bler",       0.02),
+                msg.get("snr",          20.0),
+                msg.get("ber",           0.5),
+                msg.get("noise_sigma",   0.5),
             ], dtype=np.float32)
         except zmq.Again:
             logging.warning("Metriky recv timeout")
@@ -240,21 +237,17 @@ class RadioEnvironment(gym.Env):
 
     # ── akcia ──
     def send_action(self, action_idx):
-        target = self.GAIN_TARGETS[action_idx]
-        delta  = round(target - self._gain, 6)   # koľko treba pridať/ubrať
+        target = self.NOISE_TARGETS[action_idx]
 
         if not self.connected:
-            self._gain = target
+            self._noise_sigma = target
             return True
 
-        if abs(delta) < 1e-5:   # gain je už na cieľovej hodnote, nič neposielaj
-            return True
-
-        payload = json.dumps({"gain": delta, "phase": 0.0, "eq_mu": 0.0}).encode()
+        payload = json.dumps({"noise_sigma": target}).encode()
         try:
             self.ctrl_sock.send(payload)
             self.ctrl_sock.recv()
-            self._gain = target   # aktualizuj až po potvrdení
+            self._noise_sigma = target
             return True
         except Exception as e:
             logging.error(f"send_action zlyhalo: {e}")
@@ -263,32 +256,21 @@ class RadioEnvironment(gym.Env):
 
     # ── reward ──
     def calculate_reward(self, state):
-        tput = float(state[3])
-        loss = float(state[5])
-        rtt  = float(state[4])
-        bler = float(state[6])
-        r = 1.5 * tput - 15.0 * loss - 0.05 * rtt - 5.0 * bler
-        # Kvadratická gain penalizácia — rovnaká ako v monitore (sat+low).
-        # Pri novom loss=0 aj pre gain=1.5 je toto hlavný gradient
-        # medzi dobrými a suboptimálnymi gainmi.
-        sat = max(0.0, self._gain - 1.8) ** 2 * 8.0
-        low = max(0.0, 0.8 - self._gain) ** 2 * 20.0
-        r -= sat + low
-        return float(r)
+        ber = float(state[1])
+        # -log10(BER): BER=0.5→0.3, BER=0.01→2.0, BER=1e-4→4.0, BER=1e-7→7.0
+        return float(-np.log10(max(ber, 1e-7)))
 
     # ── gym ──
     def step(self, action_idx):
         ok = self.send_action(action_idx)
         if not ok:
-            return self.get_state(), -5.0, False, False, {"send_failed": True}
-        time.sleep(0.15)
+            return self.get_state(), -1.0, False, False, {"send_failed": True}
+        time.sleep(0.2)
         state  = self.get_state()
         reward = self.calculate_reward(state)
         return state, reward, False, False, {}
 
     def reset(self, seed=None, options=None):
-        # Nezasahujeme do gainu — štartujeme v zlom stave (gain=3.0)
-        # aby agent videl reálne zlepšenie
         time.sleep(0.3)
         return self.get_state(), {}
 
@@ -301,8 +283,8 @@ class RadioEnvironment(gym.Env):
 # ── agent ─────────────────────────────────────────────────────────────────────
 class RLAgent:
     EPS_START = 0.9
-    EPS_END   = 0.01    # takmer žiadna explorácia po konvergencii
-    EPS_DECAY = 0.995   # rýchlejší decay
+    EPS_END   = 0.01
+    EPS_DECAY = 0.995
 
     def __init__(self):
         self.cfg    = load_config()
@@ -357,7 +339,7 @@ class RLAgent:
             np.array(next_obs).reshape(1, -1),
             np.array([[action]]),
             np.array([[reward]]),
-            np.array([[0.0]]),   # done = False vždy
+            np.array([[0.0]]),
             [{}]
         )
         self.model.num_timesteps += 1
@@ -380,42 +362,40 @@ class RLAgent:
     def run(self):
         LOG_EVERY   = self.tcfg.get("log_interval_steps", 20)
         SAVE_EVERY  = self.tcfg.get("save_interval_steps", 500)
-        TRAIN_EVERY = 2   # train každé 2 kroky (absolútne akcie sú pomalšie na učenie)
+        TRAIN_EVERY = 2
 
-        epsilon    = self.EPS_START
-        step       = 0
-        t0         = time.time()
+        epsilon = self.EPS_START
+        step    = 0
+        t0      = time.time()
 
-        buf_r, buf_snr, buf_tput, buf_loss, buf_gl = [], [], [], [], []
-        act_counts = [0] * self.env.action_space.n
-        recent_rewards = []   # posledných 50 pre adaptívny epsilon
+        buf_r, buf_snr, buf_ber, buf_gl = [], [], [], []
+        act_counts     = [0] * self.env.action_space.n
+        recent_rewards = []
 
         obs, _ = self.env.reset()
-        logging.info("=== Štart tréningu — absolútne gain akcie ===")
-        logging.info(f"Gain targets: {self.env.GAIN_TARGETS}")
+        logging.info("=== Štart tréningu — BER minimalizácia ===")
+        logging.info(f"Noise targets: {self.env.NOISE_TARGETS}")
         logging.info(f"Akcie: {self.env.ACTION_NAMES}")
 
         try:
             while True:
-                # Adaptívny epsilon: ak je reward stabilne vysoký, prestaň explorovať
                 if len(recent_rewards) >= 50:
                     avg_r = np.mean(recent_rewards[-50:])
-                    if avg_r > 8.0:       # blízko optima (max ~11)
+                    if avg_r > 5.0:
                         epsilon = self.EPS_END
-                    elif avg_r > 5.0:
+                    elif avg_r > 3.0:
                         epsilon = max(self.EPS_END, epsilon * 0.99)
                     else:
                         epsilon = max(self.EPS_END, epsilon * self.EPS_DECAY)
                 else:
                     epsilon = max(self.EPS_END, epsilon * self.EPS_DECAY)
 
-                # ε-greedy výber
                 if random.random() < epsilon:
                     action = self.env.action_space.sample()
-                    src = "rand"
+                    src    = "rand"
                 else:
                     action = int(self.model.predict(obs, deterministic=True)[0])
-                    src = "model"
+                    src    = "model"
 
                 next_obs, reward, _, _, info = self.env.step(action)
                 step += 1
@@ -426,43 +406,34 @@ class RLAgent:
                     if not np.isnan(gl):
                         buf_gl.append(gl)
 
-                # RL decisions log — každý krok
                 if self.debug.get("rl_decisions_log"):
+                    ber = next_obs[1]
                     self.rl_log.debug(
-                        f"k={step:5d} {src:5s} | akcia={self.env.ACTION_NAMES[action]:10s} | "
-                        f"gain={self.env._gain:.2f} | "
-                        f"SNR={next_obs[0]:5.1f}dB tput={next_obs[3]:5.1f} "
-                        f"loss={next_obs[5]:.3f} rtt={next_obs[4]:.0f}ms | "
-                        f"R={reward:7.2f} | eps={epsilon:.3f}"
+                        f"k={step:5d} {src:5s} | akcia={self.env.ACTION_NAMES[action]:12s} | "
+                        f"SNR={next_obs[0]:5.1f}dB | BER={ber:.2e} | "
+                        f"R={reward:6.2f} | eps={epsilon:.3f}"
                     )
 
-                buf_r.append(reward); buf_snr.append(next_obs[0])
-                buf_tput.append(next_obs[3]); buf_loss.append(next_obs[5])
+                buf_r.append(reward)
+                buf_snr.append(next_obs[0])
+                buf_ber.append(next_obs[1])
                 act_counts[action] += 1
                 recent_rewards.append(reward)
                 if len(recent_rewards) > 100:
                     recent_rewards.pop(0)
 
                 if step % LOG_EVERY == 0:
-                    gl_s    = f"{np.mean(buf_gl):.3f}" if buf_gl else "N/A"
-                    dom     = int(np.argmax(act_counts))
-                    total_acts = max(sum(act_counts), 1)
-                    avg_gain = sum(
-                        self.env.GAIN_TARGETS[i] * act_counts[i]
-                        for i in range(self.env.action_space.n)
-                    ) / total_acts
+                    gl_s  = f"{np.mean(buf_gl):.3f}" if buf_gl else "N/A"
+                    dom   = int(np.argmax(act_counts))
                     logging.info(
                         f"[{step:5d}] t={time.time()-t0:.0f}s | "
-                        f"reward={np.mean(buf_r):6.2f} | "
-                        f"SNR={np.mean(buf_snr):5.1f}dB | tput={np.mean(buf_tput):4.1f} | "
-                        f"loss={np.mean(buf_loss):.3f} | "
-                        f"gain={avg_gain:.2f} | "
+                        f"reward={np.mean(buf_r):5.2f} | "
+                        f"SNR={np.mean(buf_snr):5.1f}dB | BER={np.mean(buf_ber):.2e} | "
                         f"eps={epsilon:.3f} buf={self.model.replay_buffer.size()} | "
                         f"grad_loss={gl_s} | "
                         f"dom={self.env.ACTION_NAMES[dom]} | counts={act_counts}"
                     )
-                    buf_r.clear(); buf_snr.clear(); buf_tput.clear()
-                    buf_loss.clear(); buf_gl.clear()
+                    buf_r.clear(); buf_snr.clear(); buf_ber.clear(); buf_gl.clear()
                     act_counts = [0] * self.env.action_space.n
 
                 if step % SAVE_EVERY == 0:
