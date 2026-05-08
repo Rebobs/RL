@@ -14,7 +14,7 @@ class blk(gr.sync_block):
         gr.sync_block.__init__(self,
             name="ZMQ Bridge",
             in_sig=[np.int8, np.int8],
-            out_sig=[np.int8, np.float32])
+            out_sig=[np.int8])
         self._running       = False
         self._ctx           = None
         self._rep           = None
@@ -37,7 +37,11 @@ class blk(gr.sync_block):
             self._top_block = self._find_top_block()
         if self._top_block is not None:
             try:
-                self._top_block.set_noise_amp(sigma)
+                self._top_block.set_amp_noise(sigma)
+                win = getattr(self._top_block, "_amp_noise_win", None)
+                if win is not None:
+                    from PyQt5.QtCore import QTimer
+                    QTimer.singleShot(0, lambda v=sigma: win.setValue(v))
             except Exception as e:
                 print(f"[GRC] noise err: {e}")
 
@@ -79,9 +83,7 @@ class blk(gr.sync_block):
                     sigma = self._noise_sigma
                 if bw:
                     ber_avg = float(np.clip(np.mean(bw), 1e-7, 1.0))
-                    snr_db  = float(-20.0 * np.log10(max(sigma, 1e-6))) if sigma > 1e-6 else 40.0
-                    snr_db  = float(np.clip(snr_db, -10.0, 40.0))
-                    self._pub.send_json({"snr": snr_db, "ber": ber_avg, "noise_sigma": sigma})
+                    self._pub.send_json({"ber": ber_avg, "noise_sigma": sigma})
             except Exception as e:
                 print(f"[GRC] metrics err: {e}")
             time.sleep(0.2)
@@ -94,12 +96,12 @@ class blk(gr.sync_block):
         rx = input_items[1]
         n  = len(tx)
 
-        xor    = np.bitwise_xor(tx.view(np.uint8), rx.view(np.uint8))
+        xor    = np.bitwise_xor(tx, rx).astype(np.uint8)
         errors = int(np.unpackbits(xor).sum())
 
         with self._lock:
             self._win_errors += errors
-            self._win_total  += n * 2
+            self._win_total  += n * 8
             if self._win_total >= 2000:
                 ber = self._win_errors / self._win_total
                 self._ber_window.append(max(ber, 1e-7))
@@ -107,10 +109,7 @@ class blk(gr.sync_block):
                 self._win_total  = 0
             bw = list(self._ber_window)
 
-        current_ber = float(np.clip(np.mean(bw), 1e-7, 1.0)) if bw else 1e-7
-
         output_items[0][:] = rx
-        output_items[1][:] = current_ber
         return n
 
     def stop(self):

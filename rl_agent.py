@@ -109,9 +109,9 @@ def build_monitor(monitor_cfg, metrics_address):
             ax.axhline(ref, color='white', linewidth=0.8, linestyle='--', alpha=0.4)
         lines[key] = line
 
-    _make(ax_snr, "snr",    '#00bcd4', 'SNR (dB)',  (-10, 42), ref=20)
-    _make(ax_ber, "ber",    '#f44336', 'BER (log)', (1e-7, 1), logy=True)
-    _make(ax_rew, "reward", '#e040fb', 'Reward',    (-1, 7),   ref=0)
+    _make(ax_snr, "snr",    '#00bcd4', 'Noise (amp)',      (0, 3.2), ref=None)
+    _make(ax_ber, "ber",    '#f44336', 'BER (log)',        (1e-7, 1), logy=True)
+    _make(ax_rew, "reward", '#e040fb', 'Reward',           (-1, 7),   ref=0)
 
     status  = fig.text(0.01, 0.01, '', color='#aaa', fontsize=9)
     counter = [0]
@@ -129,13 +129,12 @@ def build_monitor(monitor_cfg, metrics_address):
             return list(lines.values())
 
         counter[0] += 1
-        snr   = msg.get('snr',         20.0)
         ber   = msg.get('ber',          0.5)
         sigma = msg.get('noise_sigma',  0.5)
         ber   = max(ber, 1e-7)
         rew   = float(-np.log10(ber))
 
-        bufs["snr"].append(snr)
+        bufs["snr"].append(sigma)
         bufs["ber"].append(ber)
         bufs["reward"].append(rew)
 
@@ -144,8 +143,8 @@ def build_monitor(monitor_cfg, metrics_address):
         lines["reward"].set_data(xs, list(bufs["reward"]))
 
         status.set_text(
-            f"#{counter[0]:5d} | SNR={snr:5.1f}dB | "
-            f"BER={ber:.2e} | noise_sigma={sigma:.3f} | R={rew:.2f}"
+            f"#{counter[0]:5d} | Noise={sigma:.3f} amp | "
+            f"BER={ber:.2e} | R={rew:.2f}"
         )
         return list(lines.values())
 

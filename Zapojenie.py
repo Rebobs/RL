@@ -15,7 +15,6 @@ from gnuradio import analog
 from gnuradio import blocks
 import numpy
 from gnuradio import digital
-from gnuradio import fec
 from gnuradio import gr
 from gnuradio.filter import firdes
 from gnuradio.fft import window
@@ -73,7 +72,7 @@ class Zapojenie(gr.top_block, Qt.QWidget):
         self.Excess_BW = Excess_BW = 0.35
         self.variable_constellation_0 = variable_constellation_0 = digital.constellation_qpsk().base()
         self.variable_constellation_0.set_npwr(1.0)
-        self.tx_delay = tx_delay = 336
+        self.tx_delay = tx_delay = 0
         self.samp_rate = samp_rate = 1000000
         self.rcc_tabs = rcc_tabs = firdes.root_raised_cosine(nfilts, nfilts, 1.0/float(Samp_Symb), Excess_BW, 11*Samp_Symb*nfilts)
         self.phase = phase = 0
@@ -138,39 +137,6 @@ class Zapojenie(gr.top_block, Qt.QWidget):
 
         self._qtgui_time_sink_x_0_win = sip.wrapinstance(self.qtgui_time_sink_x_0.qwidget(), Qt.QWidget)
         self.top_layout.addWidget(self._qtgui_time_sink_x_0_win)
-        self.qtgui_number_sink_ber = qtgui.number_sink(
-            gr.sizeof_float,
-            0.5,
-            qtgui.NUM_GRAPH_HORIZ,
-            1,
-            None # parent
-        )
-        self.qtgui_number_sink_ber.set_update_time(0.25)
-        self.qtgui_number_sink_ber.set_title("Real BER")
-
-        labels = ['BER (real-time)', '', '', '', '',
-            '', '', '', '', '']
-        units = ['', '', '', '', '',
-            '', '', '', '', '']
-        colors = [("blue", "red"), ("black", "black"), ("black", "black"), ("black", "black"), ("black", "black"),
-            ("black", "black"), ("black", "black"), ("black", "black"), ("black", "black"), ("black", "black")]
-        factor = [1, 1, 1, 1, 1,
-            1, 1, 1, 1, 1]
-
-        for i in range(1):
-            self.qtgui_number_sink_ber.set_min(i, 0)
-            self.qtgui_number_sink_ber.set_max(i, 1)
-            self.qtgui_number_sink_ber.set_color(i, colors[i][0], colors[i][1])
-            if len(labels[i]) == 0:
-                self.qtgui_number_sink_ber.set_label(i, "Data {0}".format(i))
-            else:
-                self.qtgui_number_sink_ber.set_label(i, labels[i])
-            self.qtgui_number_sink_ber.set_unit(i, units[i])
-            self.qtgui_number_sink_ber.set_factor(i, factor[i])
-
-        self.qtgui_number_sink_ber.enable_autoscale(False)
-        self._qtgui_number_sink_ber_win = sip.wrapinstance(self.qtgui_number_sink_ber.qwidget(), Qt.QWidget)
-        self.top_layout.addWidget(self._qtgui_number_sink_ber_win)
         self.qtgui_number_sink_0_0 = qtgui.number_sink(
             gr.sizeof_float,
             0,
@@ -208,40 +174,6 @@ class Zapojenie(gr.top_block, Qt.QWidget):
             self.top_grid_layout.setRowStretch(r, 1)
         for c in range(0, 1):
             self.top_grid_layout.setColumnStretch(c, 1)
-        self.qtgui_number_sink_0 = qtgui.number_sink(
-            gr.sizeof_float,
-            0,
-            qtgui.NUM_GRAPH_NONE,
-            1,
-            None # parent
-        )
-        self.qtgui_number_sink_0.set_update_time(0.10)
-        self.qtgui_number_sink_0.set_title("")
-
-        labels = ['GNURadio BER', '', '', '', '',
-            '', '', '', '', '']
-        units = ['', '', '', '', '',
-            '', '', '', '', '']
-        colors = [("blue", "red"), ("black", "black"), ("black", "black"), ("black", "black"), ("black", "black"),
-            ("black", "black"), ("black", "black"), ("black", "black"), ("black", "black"), ("black", "black")]
-        factor = [1, 1, 1, 1, 1,
-            1, 1, 1, 1, 1]
-
-        for i in range(1):
-            self.qtgui_number_sink_0.set_min(i, -1)
-            self.qtgui_number_sink_0.set_max(i, 0)
-            self.qtgui_number_sink_0.set_color(i, colors[i][0], colors[i][1])
-            if len(labels[i]) == 0:
-                self.qtgui_number_sink_0.set_label(i, "Data {0}".format(i))
-            else:
-                self.qtgui_number_sink_0.set_label(i, labels[i])
-            self.qtgui_number_sink_0.set_unit(i, units[i])
-            self.qtgui_number_sink_0.set_factor(i, factor[i])
-
-        self.qtgui_number_sink_0.enable_autoscale(False)
-        self._qtgui_number_sink_0_win = sip.wrapinstance(self.qtgui_number_sink_0.qwidget(), Qt.QWidget)
-        self.top_layout.addWidget(self._qtgui_number_sink_0_win)
-        self.fec_ber_bf_0 = fec.ber_bf(False, 100, -7.0)
         self.epy_block_0_0 = epy_block_0_0.blk(example_param=0)
         self.epy_block_0 = epy_block_0.blk(processing=True)
         self.digital_constellation_encoder_bc_0 = digital.constellation_encoder_bc(variable_constellation_0)
@@ -270,7 +202,6 @@ class Zapojenie(gr.top_block, Qt.QWidget):
         self.connect((self.analog_random_source_x_0, 0), (self.blocks_delay_tx, 0))
         self.connect((self.analog_random_source_x_0, 0), (self.blocks_stream_to_tagged_stream_0, 0))
         self.connect((self.analog_random_source_x_0, 0), (self.epy_block_0, 1))
-        self.connect((self.analog_random_source_x_0, 0), (self.fec_ber_bf_0, 1))
         self.connect((self.blocks_add_xx_0, 0), (self.blocks_multiply_const_vxx_0, 0))
         self.connect((self.blocks_char_to_float_0, 0), (self.blocks_float_to_complex_0, 0))
         self.connect((self.blocks_char_to_float_0, 0), (self.qtgui_time_sink_x_0, 0))
@@ -290,9 +221,6 @@ class Zapojenie(gr.top_block, Qt.QWidget):
         self.connect((self.epy_block_0, 0), (self.qtgui_number_sink_0_0, 0))
         self.connect((self.epy_block_0_0, 0), (self.blocks_char_to_float_1, 0))
         self.connect((self.epy_block_0_0, 0), (self.epy_block_0, 0))
-        self.connect((self.epy_block_0_0, 0), (self.fec_ber_bf_0, 0))
-        self.connect((self.epy_block_0_0, 1), (self.qtgui_number_sink_ber, 0))
-        self.connect((self.fec_ber_bf_0, 0), (self.qtgui_number_sink_0, 0))
 
 
     def closeEvent(self, event):
