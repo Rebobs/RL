@@ -67,20 +67,12 @@ class Zapojenie(gr.top_block, Qt.QWidget):
         ##################################################
         # Variables
         ##################################################
-        self.nfilts = nfilts = 32
-        self.Samp_Symb = Samp_Symb = 4
-        self.Excess_BW = Excess_BW = 0.35
         self.variable_constellation_0 = variable_constellation_0 = digital.constellation_qpsk().base()
         self.variable_constellation_0.set_npwr(1.0)
         self.tx_delay = tx_delay = 0
+        self.signal_gain = signal_gain = 1.0
         self.samp_rate = samp_rate = 1000000
-        self.rcc_tabs = rcc_tabs = firdes.root_raised_cosine(nfilts, nfilts, 1.0/float(Samp_Symb), Excess_BW, 11*Samp_Symb*nfilts)
-        self.phase = phase = 0
-        self.noise_amp = noise_amp = 0.0
-        self.gain = gain = 1.0
-        self.eq_mu = eq_mu = 0.001
         self.amp_noise = amp_noise = 0.25
-        self.Loop_Bandwidth = Loop_Bandwidth = 0.0628
 
         ##################################################
         # Blocks
@@ -181,11 +173,7 @@ class Zapojenie(gr.top_block, Qt.QWidget):
         self.blocks_throttle2_0 = blocks.throttle( gr.sizeof_gr_complex*1, samp_rate, True, 0 if "auto" == "auto" else max( int(float(0.1) * samp_rate) if "auto" == "time" else int(0.1), 1) )
         self.blocks_stream_to_tagged_stream_0 = blocks.stream_to_tagged_stream(gr.sizeof_char, 1, 336, "packet_len")
         self.blocks_rotator_cc_0 = blocks.rotator_cc(0.0, False)
-        self.blocks_null_sink_1 = blocks.null_sink(gr.sizeof_gr_complex*1)
-        self.blocks_null_sink_0 = blocks.null_sink(gr.sizeof_gr_complex*1)
-        self.blocks_multiply_const_vxx_0 = blocks.multiply_const_cc(2)
-        self.blocks_float_to_complex_1 = blocks.float_to_complex(1)
-        self.blocks_float_to_complex_0 = blocks.float_to_complex(1)
+        self.blocks_multiply_const_vxx_0 = blocks.multiply_const_cc(signal_gain)
         self.blocks_delay_tx = blocks.delay(gr.sizeof_char*1, tx_delay)
         self.blocks_char_to_float_1 = blocks.char_to_float(1, 1)
         self.blocks_char_to_float_0 = blocks.char_to_float(1, 1)
@@ -202,18 +190,14 @@ class Zapojenie(gr.top_block, Qt.QWidget):
         self.connect((self.analog_random_source_x_0, 0), (self.blocks_delay_tx, 0))
         self.connect((self.analog_random_source_x_0, 0), (self.blocks_stream_to_tagged_stream_0, 0))
         self.connect((self.analog_random_source_x_0, 0), (self.epy_block_0, 1))
-        self.connect((self.blocks_add_xx_0, 0), (self.blocks_multiply_const_vxx_0, 0))
-        self.connect((self.blocks_char_to_float_0, 0), (self.blocks_float_to_complex_0, 0))
+        self.connect((self.blocks_add_xx_0, 0), (self.blocks_rotator_cc_0, 0))
         self.connect((self.blocks_char_to_float_0, 0), (self.qtgui_time_sink_x_0, 0))
-        self.connect((self.blocks_char_to_float_1, 0), (self.blocks_float_to_complex_1, 0))
         self.connect((self.blocks_char_to_float_1, 0), (self.qtgui_time_sink_x_0, 1))
         self.connect((self.blocks_delay_tx, 0), (self.epy_block_0_0, 0))
-        self.connect((self.blocks_float_to_complex_0, 0), (self.blocks_null_sink_1, 0))
-        self.connect((self.blocks_float_to_complex_1, 0), (self.blocks_null_sink_0, 0))
-        self.connect((self.blocks_multiply_const_vxx_0, 0), (self.blocks_rotator_cc_0, 0))
+        self.connect((self.blocks_multiply_const_vxx_0, 0), (self.blocks_add_xx_0, 0))
         self.connect((self.blocks_rotator_cc_0, 0), (self.digital_constellation_decoder_cb_0, 0))
         self.connect((self.blocks_stream_to_tagged_stream_0, 0), (self.digital_constellation_encoder_bc_0, 0))
-        self.connect((self.blocks_throttle2_0, 0), (self.blocks_add_xx_0, 0))
+        self.connect((self.blocks_throttle2_0, 0), (self.blocks_multiply_const_vxx_0, 0))
         self.connect((self.digital_constellation_decoder_cb_0, 0), (self.epy_block_0_0, 1))
         self.connect((self.digital_constellation_encoder_bc_0, 0), (self.blocks_throttle2_0, 0))
         self.connect((self.epy_block_0, 1), (self.qtgui_number_sink_0_0, 1))
@@ -231,27 +215,6 @@ class Zapojenie(gr.top_block, Qt.QWidget):
 
         event.accept()
 
-    def get_nfilts(self):
-        return self.nfilts
-
-    def set_nfilts(self, nfilts):
-        self.nfilts = nfilts
-        self.set_rcc_tabs(firdes.root_raised_cosine(self.nfilts, self.nfilts, 1.0/float(self.Samp_Symb), self.Excess_BW, 11*self.Samp_Symb*self.nfilts))
-
-    def get_Samp_Symb(self):
-        return self.Samp_Symb
-
-    def set_Samp_Symb(self, Samp_Symb):
-        self.Samp_Symb = Samp_Symb
-        self.set_rcc_tabs(firdes.root_raised_cosine(self.nfilts, self.nfilts, 1.0/float(self.Samp_Symb), self.Excess_BW, 11*self.Samp_Symb*self.nfilts))
-
-    def get_Excess_BW(self):
-        return self.Excess_BW
-
-    def set_Excess_BW(self, Excess_BW):
-        self.Excess_BW = Excess_BW
-        self.set_rcc_tabs(firdes.root_raised_cosine(self.nfilts, self.nfilts, 1.0/float(self.Samp_Symb), self.Excess_BW, 11*self.Samp_Symb*self.nfilts))
-
     def get_variable_constellation_0(self):
         return self.variable_constellation_0
 
@@ -267,6 +230,13 @@ class Zapojenie(gr.top_block, Qt.QWidget):
         self.tx_delay = tx_delay
         self.blocks_delay_tx.set_dly(int(self.tx_delay))
 
+    def get_signal_gain(self):
+        return self.signal_gain
+
+    def set_signal_gain(self, signal_gain):
+        self.signal_gain = signal_gain
+        self.blocks_multiply_const_vxx_0.set_k(self.signal_gain)
+
     def get_samp_rate(self):
         return self.samp_rate
 
@@ -275,48 +245,12 @@ class Zapojenie(gr.top_block, Qt.QWidget):
         self.blocks_throttle2_0.set_sample_rate(self.samp_rate)
         self.qtgui_time_sink_x_0.set_samp_rate(self.samp_rate)
 
-    def get_rcc_tabs(self):
-        return self.rcc_tabs
-
-    def set_rcc_tabs(self, rcc_tabs):
-        self.rcc_tabs = rcc_tabs
-
-    def get_phase(self):
-        return self.phase
-
-    def set_phase(self, phase):
-        self.phase = phase
-
-    def get_noise_amp(self):
-        return self.noise_amp
-
-    def set_noise_amp(self, noise_amp):
-        self.noise_amp = noise_amp
-
-    def get_gain(self):
-        return self.gain
-
-    def set_gain(self, gain):
-        self.gain = gain
-
-    def get_eq_mu(self):
-        return self.eq_mu
-
-    def set_eq_mu(self, eq_mu):
-        self.eq_mu = eq_mu
-
     def get_amp_noise(self):
         return self.amp_noise
 
     def set_amp_noise(self, amp_noise):
         self.amp_noise = amp_noise
         self.analog_noise_source_x_0.set_amplitude(self.amp_noise)
-
-    def get_Loop_Bandwidth(self):
-        return self.Loop_Bandwidth
-
-    def set_Loop_Bandwidth(self, Loop_Bandwidth):
-        self.Loop_Bandwidth = Loop_Bandwidth
 
 
 

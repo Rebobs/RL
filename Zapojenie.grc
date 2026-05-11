@@ -28,47 +28,12 @@ options:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [8, 8]
+    coordinate:
+    - 8
+    - 8
     rotation: 0
     state: enabled
-
 blocks:
-- name: Excess_BW
-  id: variable
-  parameters:
-    comment: ''
-    value: '0.35'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [624, 16.0]
-    rotation: 0
-    state: enabled
-- name: Loop_Bandwidth
-  id: variable
-  parameters:
-    comment: ''
-    value: '0.0628'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [304, 16.0]
-    rotation: 0
-    state: enabled
-- name: Samp_Symb
-  id: variable
-  parameters:
-    comment: ''
-    value: '4'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [520, 16.0]
-    rotation: 0
-    state: enabled
 - name: amp_noise
   id: variable_qtgui_range
   parameters:
@@ -87,80 +52,9 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [1872, 8.0]
-    rotation: 0
-    state: enabled
-- name: eq_mu
-  id: variable
-  parameters:
-    comment: ''
-    value: '0.001'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [1256, 16.0]
-    rotation: 0
-    state: enabled
-- name: gain
-  id: variable
-  parameters:
-    comment: ''
-    value: '1.0'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [1048, 16.0]
-    rotation: 0
-    state: enabled
-- name: nfilts
-  id: variable
-  parameters:
-    comment: ''
-    value: '32'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [440, 16.0]
-    rotation: 0
-    state: enabled
-- name: noise_amp
-  id: variable
-  parameters:
-    comment: ''
-    value: '0.0'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [1336, 16.0]
-    rotation: 0
-    state: enabled
-- name: phase
-  id: variable
-  parameters:
-    comment: ''
-    value: '0'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [1152, 16.0]
-    rotation: 0
-    state: enabled
-- name: rcc_tabs
-  id: variable
-  parameters:
-    comment: ''
-    value: firdes.root_raised_cosine(nfilts, nfilts, 1.0/float(Samp_Symb), Excess_BW,
-      11*Samp_Symb*nfilts)
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [880, 16.0]
+    coordinate:
+    - 1056
+    - 8.0
     rotation: 0
     state: enabled
 - name: samp_rate
@@ -172,7 +66,23 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [184, 12]
+    coordinate:
+    - 312
+    - 16.0
+    rotation: 0
+    state: enabled
+- name: signal_gain
+  id: variable
+  parameters:
+    comment: ''
+    value: '1.0'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate:
+    - 200
+    - 16
     rotation: 0
     state: enabled
 - name: tx_delay
@@ -184,7 +94,9 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [1152, 96.0]
+    coordinate:
+    - 1184
+    - 8.0
     rotation: 0
     state: enabled
 - name: variable_constellation_0
@@ -204,7 +116,9 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [720, 16.0]
+    coordinate:
+    - 416
+    - 8.0
     rotation: 0
     state: enabled
 - name: analog_noise_source_x_0
@@ -223,7 +137,9 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [672, 320.0]
+    coordinate:
+    - 832
+    - 264.0
     rotation: 0
     state: enabled
 - name: analog_random_source_x_0
@@ -243,7 +159,9 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [24, 144.0]
+    coordinate:
+    - 24
+    - 144.0
     rotation: 0
     state: enabled
 - name: blocks_add_xx_0
@@ -261,7 +179,9 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [888, 256.0]
+    coordinate:
+    - 1048
+    - 256.0
     rotation: 0
     state: enabled
 - name: blocks_char_to_float_0
@@ -278,7 +198,9 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [360, 304.0]
+    coordinate:
+    - 360
+    - 224.0
     rotation: 0
     state: enabled
 - name: blocks_char_to_float_1
@@ -295,7 +217,9 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [1688, 256.0]
+    coordinate:
+    - 1688
+    - 256.0
     rotation: 0
     state: enabled
 - name: blocks_delay_tx
@@ -315,39 +239,9 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [632, 168.0]
-    rotation: 0
-    state: enabled
-- name: blocks_float_to_complex_0
-  id: blocks_float_to_complex
-  parameters:
-    affinity: ''
-    alias: ''
-    comment: ''
-    maxoutbuf: '0'
-    minoutbuf: '0'
-    vlen: '1'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [552, 248.0]
-    rotation: 0
-    state: enabled
-- name: blocks_float_to_complex_1
-  id: blocks_float_to_complex
-  parameters:
-    affinity: ''
-    alias: ''
-    comment: ''
-    maxoutbuf: '0'
-    minoutbuf: '0'
-    vlen: '1'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [1840, 264.0]
+    coordinate:
+    - 616
+    - 168.0
     rotation: 0
     state: enabled
 - name: blocks_multiply_const_vxx_0
@@ -356,7 +250,7 @@ blocks:
     affinity: ''
     alias: ''
     comment: ''
-    const: '2'
+    const: signal_gain
     maxoutbuf: '0'
     minoutbuf: '0'
     type: complex
@@ -365,41 +259,9 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [984, 264.0]
-    rotation: 0
-    state: enabled
-- name: blocks_null_sink_0
-  id: blocks_null_sink
-  parameters:
-    affinity: ''
-    alias: ''
-    bus_structure_sink: '[[0,],]'
-    comment: ''
-    num_inputs: '1'
-    type: complex
-    vlen: '1'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [2000, 280.0]
-    rotation: 0
-    state: enabled
-- name: blocks_null_sink_1
-  id: blocks_null_sink
-  parameters:
-    affinity: ''
-    alias: ''
-    bus_structure_sink: '[[0,],]'
-    comment: ''
-    num_inputs: '1'
-    type: complex
-    vlen: '1'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [720, 264.0]
+    coordinate:
+    - 864
+    - 112.0
     rotation: 0
     state: enabled
 - name: blocks_rotator_cc_0
@@ -416,7 +278,9 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [1160, 272.0]
+    coordinate:
+    - 1168
+    - 272.0
     rotation: 0
     state: enabled
 - name: blocks_stream_to_tagged_stream_0
@@ -435,7 +299,9 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [208, 104.0]
+    coordinate:
+    - 232
+    - 104.0
     rotation: 0
     state: enabled
 - name: blocks_throttle2_0
@@ -456,7 +322,9 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [736, 120.0]
+    coordinate:
+    - 688
+    - 104.0
     rotation: 0
     state: enabled
 - name: digital_constellation_decoder_cb_0
@@ -472,7 +340,9 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [1336, 280.0]
+    coordinate:
+    - 1352
+    - 280.0
     rotation: 0
     state: enabled
 - name: digital_constellation_encoder_bc_0
@@ -488,31 +358,26 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [448, 128.0]
+    coordinate:
+    - 456
+    - 112.0
     rotation: 0
     state: enabled
 - name: epy_block_0
   id: epy_block
   parameters:
-    _source_code: "import numpy as np\nfrom gnuradio import gr\n\nclass blk(gr.sync_block):\n\
-      \    \"\"\"Embedded Python Block - Po\u010Det ch\xFDb, BER a po\u010Det bitov\"\
-      \"\"\n\n    def __init__(self, processing=True):\n        gr.sync_block.__init__(\n\
-      \            self,\n            name='Errors-BER-Bits',\n            in_sig=[np.byte,\
-      \ np.byte], # \u2192 blok m\xE1 2 vstupy (napr. vyslan\xFD a prijat\xFD sign\xE1\
-      l).\n            out_sig=[np.float32, np.float32, np.float32] # \u2192 m\xE1\
-      \ 3 v\xFDstupy (chyby, BER, celkov\xE9 bity).\n        )\n        self.errors\
-      \ = 0\n        self.total = 0\n        self.processing = processing #\u2013\
-      \ zap\xEDna/vyp\xEDna spracovanie (ak False, blok ni\u010D nerob\xED)\n\n  \
-      \  def work(self, input_items, output_items):\n        if not self.processing:\n\
-      \            return len(output_items[0])\n\n        in0, in1 = input_items[0],\
-      \ input_items[1]\n        length = min(len(in0), len(in1))\n\n        # XOR\
-      \ bajtov a rozbalenie na bity\n        xor_vals = np.bitwise_xor(in0[:length],\
-      \ in1[:length]).astype(np.uint8)\n        bit_errors = np.unpackbits(xor_vals).sum()\n\
-      \n        self.errors += bit_errors\n        self.total += length * 8  # ka\u017E\
-      d\xFD bajt = 8 bitov\n\n        ber = (self.errors / self.total) if self.total\
-      \ > 0 else 0.0\n\n        # Zap\xED\u0161 rovnak\xFA hodnotu do cel\xE9ho v\xFD\
-      stupn\xE9ho po\u013Ea\n        output_items[0][:] = self.errors\n        output_items[1][:]\
-      \ = ber\n        output_items[2][:] = self.total\n\n        return len(output_items[0])\n"
+    _source_code: "import numpy as np\nfrom gnuradio import gr\n\nclass blk(gr.sync_block):\n    \"\"\"Embedded Python Block\
+      \ - Počet chýb, BER a počet bitov\"\"\"\n\n    def __init__(self, processing=True):\n        gr.sync_block.__init__(\n\
+      \            self,\n            name='Errors-BER-Bits',\n            in_sig=[np.byte, np.byte], # → blok má 2 vstupy\
+      \ (napr. vyslaný a prijatý signál).\n            out_sig=[np.float32, np.float32, np.float32] # → má 3 výstupy (chyby,\
+      \ BER, celkové bity).\n        )\n        self.errors = 0\n        self.total = 0\n        self.processing = processing\
+      \ #– zapína/vypína spracovanie (ak False, blok nič nerobí)\n\n    def work(self, input_items, output_items):\n     \
+      \   if not self.processing:\n            return len(output_items[0])\n\n        in0, in1 = input_items[0], input_items[1]\n\
+      \        length = min(len(in0), len(in1))\n\n        # XOR bajtov a rozbalenie na bity\n        xor_vals = np.bitwise_xor(in0[:length],\
+      \ in1[:length]).astype(np.uint8)\n        bit_errors = np.unpackbits(xor_vals).sum()\n\n        self.errors += bit_errors\n\
+      \        self.total += length * 8  # každý bajt = 8 bitov\n\n        ber = (self.errors / self.total) if self.total\
+      \ > 0 else 0.0\n\n        # Zapíš rovnakú hodnotu do celého výstupného poľa\n        output_items[0][:] = self.errors\n\
+      \        output_items[1][:] = ber\n        output_items[2][:] = self.total\n\n        return len(output_items[0])\n"
     affinity: ''
     alias: ''
     comment: ''
@@ -520,74 +385,57 @@ blocks:
     minoutbuf: '0'
     processing: 'True'
   states:
-    _io_cache: "('Errors-BER-Bits', 'blk', [('processing', 'True')], [('0', 'byte',\
-      \ 1), ('1', 'byte', 1)], [('0', 'float', 1), ('1', 'float', 1), ('2', 'float',\
-      \ 1)], 'Embedded Python Block - Po\u010Det ch\xFDb, BER a po\u010Det bitov',\
-      \ ['processing'])"
+    _io_cache: ('Errors-BER-Bits', 'blk', [('processing', 'True')], [('0', 'byte', 1), ('1', 'byte', 1)], [('0', 'float',
+      1), ('1', 'float', 1), ('2', 'float', 1)], 'Embedded Python Block - Počet chýb, BER a počet bitov', ['processing'])
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [216, 368.0]
+    coordinate:
+    - 296
+    - 304.0
     rotation: 0
     state: enabled
 - name: epy_block_0_0
   id: epy_block
   parameters:
-    _source_code: "import numpy as np\nfrom gnuradio import gr\nimport zmq\nimport\
-      \ json\nimport threading\nimport time\nimport collections\nimport gc\n\nBER_WINDOW\
-      \ = 50\n\nclass blk(gr.sync_block):\n    def __init__(self, example_param=None):\n\
-      \        gr.sync_block.__init__(self,\n            name=\"ZMQ Bridge\",\n  \
-      \          in_sig=[np.int8, np.int8],\n            out_sig=[np.int8])\n    \
-      \    self._running       = False\n        self._ctx           = None\n     \
-      \   self._rep           = None\n        self._pub           = None\n       \
-      \ self._noise_sigma   = 0.0\n        self._win_errors    = 0\n        self._win_total\
-      \     = 0\n        self._ber_window    = collections.deque(maxlen=BER_WINDOW)\n\
-      \        self._lock          = threading.Lock()\n        self._top_block   \
-      \  = None\n\n    def _find_top_block(self):\n        for obj in gc.get_objects():\n\
-      \            if type(obj).__name__ == 'Zapojenie':\n                return obj\n\
-      \        return None\n\n    def _set_noise_amp(self, sigma):\n        if self._top_block\
-      \ is None:\n            self._top_block = self._find_top_block()\n        if\
-      \ self._top_block is not None:\n            try:\n                self._top_block.set_amp_noise(sigma)\n\
-      \                win = getattr(self._top_block, \"_amp_noise_win\", None)\n\
-      \                if win is not None:\n                    from PyQt5.QtCore\
-      \ import QTimer\n                    QTimer.singleShot(0, lambda v=sigma: win.setValue(v))\n\
-      \            except Exception as e:\n                print(f\"[GRC] noise err:\
-      \ {e}\")\n\n    def _start_zmq(self):\n        self._running = True\n      \
-      \  self._ctx = zmq.Context()\n        self._rep = self._ctx.socket(zmq.REP)\n\
-      \        self._rep.setsockopt(zmq.RCVTIMEO, 100)\n        self._rep.bind(\"\
-      tcp://127.0.0.1:5555\")\n        self._pub = self._ctx.socket(zmq.PUB)\n   \
-      \     self._pub.bind(\"tcp://127.0.0.1:5556\")\n        threading.Thread(target=self._ctrl_loop,\
-      \    daemon=True).start()\n        threading.Thread(target=self._metrics_loop,\
-      \ daemon=True).start()\n        print(\"[GRC] Bridge ready \u2014 real BER (2-input\
-      \ sync)\")\n\n    def _ctrl_loop(self):\n        while self._running:\n    \
-      \        try:\n                raw  = self._rep.recv()\n                data\
-      \ = json.loads(raw.decode())\n                new_sigma = float(np.clip(float(data.get(\"\
-      noise_sigma\", self._noise_sigma)), 0.0, 5.0))\n                with self._lock:\n\
-      \                    self._noise_sigma = new_sigma\n                self._set_noise_amp(new_sigma)\n\
-      \                self._rep.send(b\"ok\")\n            except zmq.Again:\n  \
-      \              pass\n            except Exception as e:\n                print(f\"\
-      [GRC] ctrl err: {e}\")\n                try: self._rep.send(b\"err\")\n    \
-      \            except: pass\n\n    def _metrics_loop(self):\n        time.sleep(1.0)\n\
-      \        while self._running:\n            try:\n                with self._lock:\n\
-      \                    bw    = list(self._ber_window)\n                    sigma\
-      \ = self._noise_sigma\n                if bw:\n                    ber_avg =\
-      \ float(np.clip(np.mean(bw), 1e-7, 1.0))\n                    snr_db  = float(-20.0\
-      \ * np.log10(max(sigma, 1e-6))) if sigma > 1e-6 else 40.0\n                \
-      \    snr_db  = float(np.clip(snr_db, -10.0, 40.0))\n                    self._pub.send_json({\"\
-      snr\": snr_db, \"ber\": ber_avg, \"noise_sigma\": sigma})\n            except\
-      \ Exception as e:\n                print(f\"[GRC] metrics err: {e}\")\n    \
-      \        time.sleep(0.2)\n\n    def work(self, input_items, output_items):\n\
-      \        if not self._running:\n            self._start_zmq()\n\n        tx\
-      \ = input_items[0]\n        rx = input_items[1]\n        n  = len(tx)\n\n  \
-      \      xor    = np.bitwise_xor(tx, rx).astype(np.uint8)\n        errors = int(np.unpackbits(xor).sum())\n\
-      \n        with self._lock:\n            self._win_errors += errors\n       \
-      \     self._win_total  += n * 8\n            if self._win_total >= 2000:\n \
-      \               ber = self._win_errors / self._win_total\n                self._ber_window.append(max(ber,\
-      \ 1e-7))\n                self._win_errors = 0\n                self._win_total\
-      \  = 0\n            bw = list(self._ber_window)\n\n        output_items[0][:]\
-      \ = rx\n        return n\n\n    def stop(self):\n        self._running = False\n\
-      \        if self._rep: self._rep.close()\n        if self._pub: self._pub.close()\n\
-      \        if self._ctx: self._ctx.term()\n        return True\n"
+    _source_code: "import numpy as np\nfrom gnuradio import gr\nimport zmq\nimport json\nimport threading\nimport time\nimport\
+      \ collections\nimport gc\n\nBER_WINDOW = 20\n\nclass blk(gr.sync_block):\n    def __init__(self, example_param=None):\n\
+      \        gr.sync_block.__init__(self,\n            name=\"ZMQ Bridge\",\n            in_sig=[np.int8, np.int8],\n  \
+      \          out_sig=[np.int8])\n        self._running       = False\n        self._ctx           = None\n        self._rep\
+      \           = None\n        self._pub           = None\n        self._noise_sigma   = 0.0\n        self._win_errors\
+      \    = 0\n        self._win_total     = 0\n        self._ber_window    = collections.deque(maxlen=BER_WINDOW)\n    \
+      \    self._lock          = threading.Lock()\n        self._top_block     = None\n\n    def _find_top_block(self):\n\
+      \        for obj in gc.get_objects():\n            if type(obj).__name__ == 'Zapojenie':\n                return obj\n\
+      \        return None\n\n    def _set_noise_amp(self, sigma):\n        if self._top_block is None:\n            self._top_block\
+      \ = self._find_top_block()\n        if self._top_block is not None:\n            try:\n                self._top_block.set_signal_gain(sigma)\n\
+      \                win = getattr(self._top_block, \"_signal_gain_win\", None)\n                if win is not None:\n \
+      \                   from PyQt5.QtCore import QTimer\n                    QTimer.singleShot(0, lambda v=sigma: win.setValue(v))\n\
+      \            except Exception as e:\n                print(f\"[GRC] noise err: {e}\")\n\n    def _start_zmq(self):\n\
+      \        self._running = True\n        self._ctx = zmq.Context()\n        self._rep = self._ctx.socket(zmq.REP)\n  \
+      \      self._rep.setsockopt(zmq.RCVTIMEO, 100)\n        self._rep.bind(\"tcp://127.0.0.1:5555\")\n        self._pub\
+      \ = self._ctx.socket(zmq.PUB)\n        self._pub.bind(\"tcp://127.0.0.1:5556\")\n        threading.Thread(target=self._ctrl_loop,\
+      \    daemon=True).start()\n        threading.Thread(target=self._metrics_loop, daemon=True).start()\n        print(\"\
+      [GRC] Bridge ready — real BER (2-input sync)\")\n\n    def _ctrl_loop(self):\n        while self._running:\n       \
+      \     try:\n                raw  = self._rep.recv()\n                data = json.loads(raw.decode())\n             \
+      \   new_sigma = float(np.clip(float(data.get(\"noise_sigma\", self._noise_sigma)), 0.0, 5.0))\n                with\
+      \ self._lock:\n                    self._noise_sigma = new_sigma\n                self._set_noise_amp(new_sigma)\n \
+      \               self._rep.send(b\"ok\")\n            except zmq.Again:\n                pass\n            except Exception\
+      \ as e:\n                print(f\"[GRC] ctrl err: {e}\")\n                try: self._rep.send(b\"err\")\n          \
+      \      except: pass\n\n    def _metrics_loop(self):\n        time.sleep(1.0)\n        while self._running:\n       \
+      \     try:\n                with self._lock:\n                    bw    = list(self._ber_window)\n                 \
+      \   sigma = self._noise_sigma\n                if bw:\n                    ber_avg = float(np.clip(np.mean(bw), 1e-7,\
+      \ 1.0))\n                    snr_db  = float(-20.0 * np.log10(max(sigma, 1e-6))) if sigma > 1e-6 else 40.0\n       \
+      \             snr_db  = float(np.clip(snr_db, -10.0, 40.0))\n                    self._pub.send_json({\"snr\": snr_db,\
+      \ \"ber\": ber_avg, \"noise_sigma\": sigma})\n            except Exception as e:\n                print(f\"[GRC] metrics\
+      \ err: {e}\")\n            time.sleep(0.2)\n\n    def work(self, input_items, output_items):\n        if not self._running:\n\
+      \            self._start_zmq()\n\n        tx = input_items[0]\n        rx = input_items[1]\n        n  = len(tx)\n\n\
+      \        xor    = np.bitwise_xor(tx, rx).astype(np.uint8)\n        errors = int(np.unpackbits(xor).sum())\n\n      \
+      \  with self._lock:\n            self._win_errors += errors\n            self._win_total  += n * 8\n            if self._win_total\
+      \ >= 200000:\n                ber = self._win_errors / self._win_total\n                self._ber_window.append(max(ber,\
+      \ 1e-7))\n                self._win_errors = 0\n                self._win_total  = 0\n            bw = list(self._ber_window)\n\
+      \n        output_items[0][:] = rx\n        return n\n\n    def stop(self):\n        self._running = False\n        if\
+      \ self._rep: self._rep.close()\n        if self._pub: self._pub.close()\n        if self._ctx: self._ctx.term()\n  \
+      \      return True\n"
     affinity: ''
     alias: ''
     comment: ''
@@ -595,12 +443,14 @@ blocks:
     maxoutbuf: '0'
     minoutbuf: '0'
   states:
-    _io_cache: ('ZMQ Bridge', 'blk', [('example_param', 'None')], [('0', 'byte', 1),
-      ('1', 'byte', 1)], [('0', 'byte', 1)], '', [])
+    _io_cache: ('ZMQ Bridge', 'blk', [('example_param', 'None')], [('0', 'byte', 1), ('1', 'byte', 1)], [('0', 'byte', 1)],
+      '', [])
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [1504, 176.0]
+    coordinate:
+    - 1512
+    - 176.0
     rotation: 0
     state: enabled
 - name: qtgui_number_sink_0_0
@@ -663,7 +513,9 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [384, 360.0]
+    coordinate:
+    - 480
+    - 296.0
     rotation: 0
     state: enabled
 - name: qtgui_time_sink_x_0
@@ -760,7 +612,9 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [1096, 536.0]
+    coordinate:
+    - 1056
+    - 376.0
     rotation: 0
     state: enabled
 - name: virtual_sink_0
@@ -773,7 +627,9 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [1696, 184.0]
+    coordinate:
+    - 1696
+    - 184.0
     rotation: 0
     state: enabled
 - name: virtual_source_0
@@ -786,37 +642,96 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [16, 376.0]
+    coordinate:
+    - 72
+    - 312.0
     rotation: 0
     state: enabled
-
 connections:
-- [analog_noise_source_x_0, '0', blocks_add_xx_0, '1']
-- [analog_random_source_x_0, '0', blocks_char_to_float_0, '0']
-- [analog_random_source_x_0, '0', blocks_delay_tx, '0']
-- [analog_random_source_x_0, '0', blocks_stream_to_tagged_stream_0, '0']
-- [analog_random_source_x_0, '0', epy_block_0, '1']
-- [blocks_add_xx_0, '0', blocks_multiply_const_vxx_0, '0']
-- [blocks_char_to_float_0, '0', blocks_float_to_complex_0, '0']
-- [blocks_char_to_float_0, '0', qtgui_time_sink_x_0, '0']
-- [blocks_char_to_float_1, '0', blocks_float_to_complex_1, '0']
-- [blocks_char_to_float_1, '0', qtgui_time_sink_x_0, '1']
-- [blocks_delay_tx, '0', epy_block_0_0, '0']
-- [blocks_float_to_complex_0, '0', blocks_null_sink_1, '0']
-- [blocks_float_to_complex_1, '0', blocks_null_sink_0, '0']
-- [blocks_multiply_const_vxx_0, '0', blocks_rotator_cc_0, '0']
-- [blocks_rotator_cc_0, '0', digital_constellation_decoder_cb_0, '0']
-- [blocks_stream_to_tagged_stream_0, '0', digital_constellation_encoder_bc_0, '0']
-- [blocks_throttle2_0, '0', blocks_add_xx_0, '0']
-- [digital_constellation_decoder_cb_0, '0', epy_block_0_0, '1']
-- [digital_constellation_encoder_bc_0, '0', blocks_throttle2_0, '0']
-- [epy_block_0, '0', qtgui_number_sink_0_0, '0']
-- [epy_block_0, '1', qtgui_number_sink_0_0, '1']
-- [epy_block_0, '2', qtgui_number_sink_0_0, '2']
-- [epy_block_0_0, '0', blocks_char_to_float_1, '0']
-- [epy_block_0_0, '0', virtual_sink_0, '0']
-- [virtual_source_0, '0', epy_block_0, '0']
-
+- - analog_noise_source_x_0
+  - '0'
+  - blocks_add_xx_0
+  - '1'
+- - analog_random_source_x_0
+  - '0'
+  - blocks_char_to_float_0
+  - '0'
+- - analog_random_source_x_0
+  - '0'
+  - blocks_delay_tx
+  - '0'
+- - analog_random_source_x_0
+  - '0'
+  - blocks_stream_to_tagged_stream_0
+  - '0'
+- - analog_random_source_x_0
+  - '0'
+  - epy_block_0
+  - '1'
+- - blocks_add_xx_0
+  - '0'
+  - blocks_rotator_cc_0
+  - '0'
+- - blocks_char_to_float_0
+  - '0'
+  - qtgui_time_sink_x_0
+  - '0'
+- - blocks_char_to_float_1
+  - '0'
+  - qtgui_time_sink_x_0
+  - '1'
+- - blocks_delay_tx
+  - '0'
+  - epy_block_0_0
+  - '0'
+- - blocks_multiply_const_vxx_0
+  - '0'
+  - blocks_add_xx_0
+  - '0'
+- - blocks_rotator_cc_0
+  - '0'
+  - digital_constellation_decoder_cb_0
+  - '0'
+- - blocks_stream_to_tagged_stream_0
+  - '0'
+  - digital_constellation_encoder_bc_0
+  - '0'
+- - blocks_throttle2_0
+  - '0'
+  - blocks_multiply_const_vxx_0
+  - '0'
+- - digital_constellation_decoder_cb_0
+  - '0'
+  - epy_block_0_0
+  - '1'
+- - digital_constellation_encoder_bc_0
+  - '0'
+  - blocks_throttle2_0
+  - '0'
+- - epy_block_0
+  - '0'
+  - qtgui_number_sink_0_0
+  - '0'
+- - epy_block_0
+  - '1'
+  - qtgui_number_sink_0_0
+  - '1'
+- - epy_block_0
+  - '2'
+  - qtgui_number_sink_0_0
+  - '2'
+- - epy_block_0_0
+  - '0'
+  - blocks_char_to_float_1
+  - '0'
+- - epy_block_0_0
+  - '0'
+  - virtual_sink_0
+  - '0'
+- - virtual_source_0
+  - '0'
+  - epy_block_0
+  - '0'
 metadata:
   file_format: 1
   grc_version: 3.10.12.0

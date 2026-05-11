@@ -1,6 +1,6 @@
 # RL Agent pre GNU Radio
 
-DQN agent ktorý sa pripojí na GNU Radio cez ZeroMQ, číta metriky signálu (SNR, throughput, loss, RTT, BLER) a automaticky nastavuje gain pre optimálny príjem.
+DQN agent ktorý sa pripojí na GNU Radio cez ZeroMQ, číta BER (Bit Error Rate) a automaticky nastavuje zosilnenie signálu (signal_gain) na Multiply Const bloku s cieľom minimalizovať BER.
 
 ## Inštalácia
 
@@ -25,9 +25,9 @@ pip install stable-baselines3 gymnasium numpy pyzmq matplotlib PyQt5
 
 ### 1. Spusti GNU Radio
 
-Otvor `flowgraph.grc` v GNU Radio Companion (`gnuradio-companion flowgraph.grc`) a klikni **Run**. GNU Radio vygeneruje `options_0_epy_block_0.py` a otvorí ZMQ sockety na portoch 5555 a 5556.
+Otvor `Zapojenie.grc` v GNU Radio Companion a klikni **Run**. Flowgraph vygeneruje `Zapojenie_epy_block_0_0.py` (ZMQ bridge) a otvorí sockety na portoch 5555 a 5556.
 
-> **Poznámka:** `options_0_epy_block_0.py` sa generuje automaticky z `.grc` súboru — nie je v repozitári.
+> **Poznámka:** `Zapojenie.py` sa generuje automaticky príkazom `grcc Zapojenie.grc` — nie je potrebné ho upravovať ručne.
 
 ### 2. Spusti agenta
 
@@ -36,7 +36,7 @@ source venv/bin/activate
 python main.py
 ```
 
-Agent sa automaticky pripojí na GNU Radio, začne zbierať metriky a trénovať.
+Agent sa automaticky pripojí na GNU Radio, začne zbierať BER metriky a trénovať.
 
 ### Príkazy
 
@@ -61,7 +61,7 @@ Agent sa automaticky pripojí na GNU Radio, začne zbierať metriky a trénovať
     },
     "monitor": {
         "enabled": true,
-        "window": 500,
+        "window": 1000,
         "update_interval_ms": 100
     },
     "training": {
@@ -77,8 +77,8 @@ Agent sa automaticky pripojí na GNU Radio, začne zbierať metriky a trénovať
 
 | Kľúč | Popis |
 |------|-------|
-| `monitor.enabled` | Zobrazí live graf (SNR, throughput, reward, gain...) |
-| `monitor.window` | Počet krokov viditeľných v grafe |
+| `monitor.enabled` | Zobrazí live graf (Signal Gain, BER, Reward) |
+| `monitor.window` | Počet meraní viditeľných v grafe |
 | `debug.rl_decisions_log` | Každé rozhodnutie agenta zapíše do `rl_decisions.log` |
 | `training.learning_starts` | Koľko krokov sa zbiera do replay bufferu pred prvým tréningom |
 | `training.save_interval_steps` | Každých N krokov sa uloží model do `saved_models/` |
@@ -90,37 +90,35 @@ Agent sa automaticky pripojí na GNU Radio, začne zbierať metriky a trénovať
 | `main.py` | Vstupný bod — spúšťa agenta a monitor |
 | `rl_agent.py` | DQN agent, prostredie, reward funkcia |
 | `config.json` | Konfigurácia |
-| `monitor.py` | Standalone monitor (alternatíva k `monitor.enabled`) |
+| `Zapojenie.grc` | GNU Radio flowgraph (QPSK TX/RX + ZMQ bridge) |
+| `Zapojenie_epy_block_0_0.py` | ZMQ bridge — meria BER, prijíma príkazy od agenta |
 | `saved_models/` | Automaticky ukladané modely (`.zip`) |
 | `debug.log` | Súhrnné štatistiky každých 20 krokov |
 | `rl_decisions.log` | Každé rozhodnutie agenta (ak `rl_decisions_log: true`) |
-| `options_0_epy_block_0.py` | GNU Radio embedded Python blok (ZMQ bridge) |
 
 ## Live Monitor
 
-Ak je `monitor.enabled: true` v `config.json`, po spustení `python main.py` sa otvorí okno s 6 grafmi:
+Ak je `monitor.enabled: true` v `config.json`, po spustení `python main.py` sa otvorí okno s 3 grafmi:
 
-- SNR (dB) — kvalita signálu
-- Throughput (Mbps)
-- Packet Loss
-- RTT (ms)
-- Reward — čo agent optimalizuje
-- Gain — aktuálna hodnota nastavená agentom
+- **Signal Gain** — aktuálna hodnota zosilnenia nastavená agentom (referencia = 1.0)
+- **BER (log)** — nameraný Bit Error Rate v logaritmickej škále
+- **Reward** — hodnota odmeny (`-log10(BER)`)
 
 ## Ako to funguje
 
-Agent má **11 diskrétnych akcií** — každá akcia nastaví gain priamo na pevnú hodnotu:
+Agent má **10 diskrétnych akcií** — každá akcia nastaví signal_gain priamo na pevnú hodnotu:
 
 ```
-[0.3, 0.5, 0.7, 0.9, 1.0, 1.2, 1.5, 1.8, 2.0, 2.5, 3.0]
+[0.1, 0.3, 0.5, 0.7, 1.0, 1.5, 2.0, 3.0, 5.0, 10.0]
 ```
 
-GNU Radio štartuje s `gain=3.0` (degradovaný stav → SNR≈0 dB). Agent sa naučí, že optimum je `gain≈1.0` (SNR≈20 dB, throughput≈10 Mbps). Po ~200–500 krokoch konverguje.
+BER sa meria priamo v GNU Rádiu porovnaním TX a RX bitov (XOR → unpackbits). Vyššie zosilnenie → lepší SNR → nižší BER → vyšší reward.
 
 **Reward funkcia:**
 ```
-reward = 1.5 * throughput - 15.0 * loss - 0.05 * rtt - 5.0 * bler
+reward = -log10(BER)
 ```
+Príklady: BER=0.5 → reward≈0.3 | BER=0.01 → reward=2.0 | BER=1e-4 → reward=4.0
 
 ## ZeroMQ komunikácia
 
@@ -129,4 +127,12 @@ reward = 1.5 * throughput - 15.0 * loss - 0.05 * rtt - 5.0 * bler
 | Control | 5555 | Agent → GNU Radio | REQ/REP |
 | Metrics | 5556 | GNU Radio → Agent | PUB/SUB |
 
-Podrobnosti o JSON formáte: [`JSON_FORMAT.md`](JSON_FORMAT.md)
+**Správa od agenta (Control):**
+```json
+{"noise_sigma": 2.0}
+```
+
+**Správa od GNU Rádia (Metrics):**
+```json
+{"ber": 0.0012, "noise_sigma": 2.0}
+```

@@ -109,7 +109,7 @@ def build_monitor(monitor_cfg, metrics_address):
             ax.axhline(ref, color='white', linewidth=0.8, linestyle='--', alpha=0.4)
         lines[key] = line
 
-    _make(ax_snr, "snr",    '#00bcd4', 'Noise (amp)',      (0, 3.2), ref=None)
+    _make(ax_snr, "snr",    '#00bcd4', 'Signal Gain',      (0, 10.5), ref=1.0)
     _make(ax_ber, "ber",    '#f44336', 'BER (log)',        (1e-7, 1), logy=True)
     _make(ax_rew, "reward", '#e040fb', 'Reward',           (-1, 7),   ref=0)
 
@@ -143,7 +143,7 @@ def build_monitor(monitor_cfg, metrics_address):
         lines["reward"].set_data(xs, list(bufs["reward"]))
 
         status.set_text(
-            f"#{counter[0]:5d} | Noise={sigma:.3f} amp | "
+            f"#{counter[0]:5d} | Gain={sigma:.3f} | "
             f"BER={ber:.2e} | R={rew:.2f}"
         )
         return list(lines.values())
@@ -157,26 +157,26 @@ def build_monitor(monitor_cfg, metrics_address):
 # ── environment ───────────────────────────────────────────────────────────────
 class RadioEnvironment(gym.Env):
     """
-    Agent nastaví hladinu šumu (noise_sigma).
-    Bridge pridá AWGN, Python zmeria BER porovnaním TX vs. RX bitov.
+    Agent nastaví zosilnenie signálu (signal_gain) na Multiply Const bloku.
+    Bridge meria BER porovnaním TX vs. RX bitov.
     Reward = -log10(BER): vyšší reward = nižší BER.
 
-    Noise targets: [0.0, 0.1, 0.2, 0.3, 0.5, 0.7, 1.0, 1.5, 2.0, 3.0]
+    Gain targets: [0.1, 0.3, 0.5, 0.7, 1.0, 1.5, 2.0, 3.0, 5.0, 10.0]
     """
-    NOISE_TARGETS = [0.0, 0.1, 0.2, 0.3, 0.5, 0.7, 1.0, 1.5, 2.0, 3.0]
-    ACTION_NAMES  = [f"sigma={s:.1f}" for s in NOISE_TARGETS]
+    NOISE_TARGETS = [0.1, 0.3, 0.5, 0.7, 1.0, 1.5, 2.0, 3.0, 5.0, 10.0]
+    ACTION_NAMES  = [f"gain={s:.1f}" for s in NOISE_TARGETS]
 
     def __init__(self, config):
         super().__init__()
         self.config = config
-        # obs: [snr_db, ber, noise_sigma]
+        # obs: [gain, ber, noise_sigma]
         self.observation_space = spaces.Box(
-            low =np.array([-10.0, 0.0,  0.0], dtype=np.float32),
-            high=np.array([ 40.0, 1.0,  3.0], dtype=np.float32),
+            low =np.array([0.0, 0.0, 0.0], dtype=np.float32),
+            high=np.array([10.0, 1.0, 10.0], dtype=np.float32),
         )
         self.action_space = spaces.Discrete(len(self.NOISE_TARGETS))
 
-        self._noise_sigma = 0.5
+        self._noise_sigma = 1.0
 
         self.ctrl_sock    = None
         self.metrics_sock = None
@@ -222,10 +222,11 @@ class RadioEnvironment(gym.Env):
             while self.metrics_sock.poll(0) > 0:
                 raw = self.metrics_sock.recv()
             msg = json.loads(raw.decode('utf-8'))
+            gain = msg.get("noise_sigma", 1.0)
             return np.array([
-                msg.get("snr",          20.0),
-                msg.get("ber",           0.5),
-                msg.get("noise_sigma",   0.5),
+                gain,
+                msg.get("ber", 0.5),
+                gain,
             ], dtype=np.float32)
         except zmq.Again:
             logging.warning("Metriky recv timeout")
@@ -264,7 +265,7 @@ class RadioEnvironment(gym.Env):
         ok = self.send_action(action_idx)
         if not ok:
             return self.get_state(), -1.0, False, False, {"send_failed": True}
-        time.sleep(0.2)
+        time.sleep(2.0)
         state  = self.get_state()
         reward = self.calculate_reward(state)
         return state, reward, False, False, {}
